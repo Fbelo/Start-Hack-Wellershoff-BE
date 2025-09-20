@@ -20,3 +20,4 @@ email-validator>=2.1.0.post1
 # Supabase (optional, for auth and realtime features)
 supabase>=1.0.3
 psycopg2-binary==2.9.9
+SQLAlchemy>=2.0
