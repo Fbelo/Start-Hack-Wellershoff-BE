@@ -1,13 +1,22 @@
-from typing import List, Optional, Dict
+from fastapi import HTTPException, Query, Body, Depends, APIRouter
+from typing import List, Dict, Optional
 from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from app.db.models import User
 from app.api.schemas.user import UserModel, UserCreate, UserUpdate
+from app.db.database import get_db
 
-class UserService:
+# Create user router
+user_router = APIRouter(
+    prefix="/api/v1/users",
+    tags=["users"],
+    responses={404: {"description": "Not found"}},
+)
+
+class UserController:
     """
-    Service for handling user operations
+    Controller for handling user operations
     """
     
     @staticmethod
@@ -53,7 +62,6 @@ class UserService:
             name=user_data.name,
             email=user_data.email,
             profile_picture=user_data.profile_picture,
-            preferences=user_data.preferences,
             created_at=datetime.now(),
             updated_at=datetime.now()
         )
@@ -83,8 +91,6 @@ class UserService:
             user.email = user_data.email
         if user_data.profile_picture is not None:
             user.profile_picture = user_data.profile_picture
-        if user_data.preferences is not None:
-            user.preferences = user_data.preferences
         if user_data.last_login is not None:
             user.last_login = user_data.last_login
         
@@ -125,9 +131,11 @@ class UserService:
             return None
         
         # Update preferences
-        if not user.preferences:
+        if not hasattr(user, 'preferences') or user.preferences is None:
             user.preferences = {}
-        user.preferences.update(preferences)
+        
+        if hasattr(user, 'preferences'):
+            user.preferences.update(preferences)
         user.updated_at = datetime.now()
         
         try:
@@ -166,16 +174,134 @@ class UserService:
         fake_user_data = UserCreate(
             name="Demo User",
             email="demo@example.com",
-            profile_picture="https://ui-avatars.com/api/?name=Demo+User&background=random",
-            preferences={
-                "daily_news_digest": True,
-                "portfolio_alerts": True,
-                "market_updates": True
-            }
+            profile_picture="https://ui-avatars.com/api/?name=Demo+User&background=random"
         )
         
         try:
-            return UserService.create(db, fake_user_data)
+            return UserController.create(db, fake_user_data)
         except ValueError:
             # If user already exists, get it
-            return UserService.get_by_email(db, "demo@example.com")
+            return UserController.get_by_email(db, "demo@example.com")
+    
+    # API Endpoint Methods
+    @staticmethod
+    async def api_get_all_users(
+        limit: int = Query(50, ge=1, le=100),
+        db: Session = Depends(get_db)
+    ):
+        """
+        Get all users
+        """
+        return UserController.get_all(db, limit=limit)
+
+    @staticmethod
+    async def api_get_user_by_id(
+        user_id: int,
+        db: Session = Depends(get_db)
+    ):
+        """
+        Get a specific user by ID
+        """
+        user = UserController.get_by_id(db, user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return user
+
+    @staticmethod
+    async def api_get_user_by_email(
+        email: str,
+        db: Session = Depends(get_db)
+    ):
+        """
+        Get a user by email
+        """
+        user = UserController.get_by_email(db, email)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return user
+
+    @staticmethod
+    async def api_create_user(
+        user: UserCreate,
+        db: Session = Depends(get_db)
+    ):
+        """
+        Create a new user
+        """
+        try:
+            return UserController.create(db, user)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @staticmethod
+    async def api_update_user(
+        user_id: int,
+        user: UserUpdate,
+        db: Session = Depends(get_db)
+    ):
+        """
+        Update a user
+        """
+        updated_user = UserController.update(db, user_id, user)
+        if not updated_user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return updated_user
+
+    @staticmethod
+    async def api_delete_user(
+        user_id: int,
+        db: Session = Depends(get_db)
+    ):
+        """
+        Delete a user
+        """
+        result = UserController.delete(db, user_id)
+        if not result:
+            raise HTTPException(status_code=404, detail="User not found")
+        return True
+
+    @staticmethod
+    async def api_update_user_preferences(
+        user_id: int,
+        preferences: Dict[str, bool] = Body(...),
+        db: Session = Depends(get_db)
+    ):
+        """
+        Update a user's preferences
+        """
+        updated_user = UserController.update_preferences(db, user_id, preferences)
+        if not updated_user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return updated_user
+
+
+# Define routes
+@user_router.get("/", response_model=List[UserModel])
+async def get_all_users(limit: int = Query(50, ge=1, le=100), db: Session = Depends(get_db)):
+    return await UserController.api_get_all_users(limit=limit, db=db)
+
+@user_router.get("/{user_id}", response_model=UserModel)
+async def get_user_by_id(user_id: int, db: Session = Depends(get_db)):
+    return await UserController.api_get_user_by_id(user_id=user_id, db=db)
+
+@user_router.get("/email/{email}", response_model=UserModel)
+async def get_user_by_email(email: str, db: Session = Depends(get_db)):
+    return await UserController.api_get_user_by_email(email=email, db=db)
+
+@user_router.post("/", response_model=UserModel, status_code=201)
+async def create_user(user: UserCreate, db: Session = Depends(get_db)):
+    return await UserController.api_create_user(user=user, db=db)
+
+@user_router.put("/{user_id}", response_model=UserModel)
+async def update_user(user_id: int, user: UserUpdate, db: Session = Depends(get_db)):
+    return await UserController.api_update_user(user_id=user_id, user=user, db=db)
+
+@user_router.delete("/{user_id}", response_model=bool)
+async def delete_user(user_id: int, db: Session = Depends(get_db)):
+    return await UserController.api_delete_user(user_id=user_id, db=db)
+
+@user_router.patch("/{user_id}/preferences", response_model=UserModel)
+async def update_user_preferences(user_id: int, preferences: Dict[str, bool] = Body(...), db: Session = Depends(get_db)):
+    return await UserController.api_update_user_preferences(user_id=user_id, preferences=preferences, db=db)

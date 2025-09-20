@@ -24,15 +24,7 @@ class PortfolioAssetModel(BaseModel):
     symbol: str  # Ticker symbol (e.g., AAPL, BTC, EUR/USD)
     name: str  # Full name (e.g., Apple Inc., Bitcoin, Euro/US Dollar)
     asset_type: AssetType
-    quantity: float
-    purchase_price: float
-    current_price: Optional[float] = None
-    purchase_date: datetime
-    sector: Optional[str] = None
-    industry: Optional[str] = None
-    country: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
-    asset_metadata: Dict[str, str] = Field(default_factory=dict)  # Additional asset-specific data
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
     
@@ -44,13 +36,6 @@ class PortfolioAssetModel(BaseModel):
                 "symbol": "AAPL",
                 "name": "Apple Inc.",
                 "asset_type": "stock",
-                "quantity": 10,
-                "purchase_price": 150.75,
-                "current_price": 175.50,
-                "purchase_date": "2025-05-15T09:30:00Z",
-                "sector": "Technology",
-                "industry": "Consumer Electronics",
-                "country": "USA",
                 "tags": ["tech", "consumer", "dividend"]
             }
         }
@@ -61,30 +46,13 @@ class PortfolioAssetCreate(BaseModel):
     symbol: str
     name: str
     asset_type: AssetType
-    quantity: float
-    purchase_price: float
-    current_price: Optional[float] = None
-    purchase_date: datetime
-    sector: Optional[str] = None
-    industry: Optional[str] = None
-    country: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
-    asset_metadata: Dict[str, str] = Field(default_factory=dict)
 
 # Update model for updating portfolio assets
 class PortfolioAssetUpdate(BaseModel):
     symbol: Optional[str] = None
     name: Optional[str] = None
-    asset_type: Optional[AssetType] = None
-    quantity: Optional[float] = None
-    purchase_price: Optional[float] = None
-    current_price: Optional[float] = None
-    purchase_date: Optional[datetime] = None
-    sector: Optional[str] = None
-    industry: Optional[str] = None
-    country: Optional[str] = None
     tags: Optional[List[str]] = None
-    asset_metadata: Optional[Dict[str, str]] = None
     
 class PortfolioAssetExtended(PortfolioAssetModel):
     """

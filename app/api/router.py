@@ -1,10 +1,10 @@
 from fastapi import APIRouter
 
 # Import routers from controller modules
-from app.api.controllers.user_controller import user_router
-from app.api.controllers.news_controller import news_router
-from app.api.controllers.portfolio_controller import portfolio_router
-from app.api.controllers.prediction_controller import prediction_router
+from app.api.controllers.user import user_router
+from app.api.controllers.news import news_router
+from app.api.controllers.portfolio import portfolio_router
+from app.api.controllers.prediction import prediction_router
 
 # Create a top-level router
 router = APIRouter()

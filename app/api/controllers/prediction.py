@@ -1,8 +1,10 @@
-from fastapi import HTTPException, BackgroundTasks, APIRouter
+from fastapi import HTTPException, BackgroundTasks, APIRouter, Depends
 from typing import List, Dict
-from app.services.news import NewsService
-from app.services.portfolio_asset import PortfolioAssetService
+from sqlalchemy.orm import Session
+from app.api.controllers.news import NewsController
+from app.api.controllers.portfolio import PortfolioController
 from app.api.schemas.news import NewsModel, ImpactType
+from app.db.database import get_db
 import logging
 
 # Configure logging
@@ -18,17 +20,17 @@ prediction_router = APIRouter(
 
 class PredictionController:
     @staticmethod
-    async def predict_news_impact_for_user(news_id: str, user_id: str):
+    async def predict_news_impact_for_user(news_id: str, user_id: int, db: Session = Depends(get_db)):
         """
         Predict the impact of a specific news article on a user's portfolio
         """
         # Get the news
-        news = NewsService.get_by_id(news_id)
+        news = NewsController.get_by_id(db, int(news_id))
         if not news:
             raise HTTPException(status_code=404, detail="News article not found")
             
         # Get the user's portfolio
-        portfolio = PortfolioAssetService.get_all_by_user(user_id)
+        portfolio = PortfolioController.get_all_by_user(db, user_id)
         if not portfolio:
             raise HTTPException(status_code=404, detail="User has no portfolio assets")
             
@@ -37,64 +39,57 @@ class PredictionController:
             updated_news = ""
             # updated_news = predict_news_impact(news, portfolio)
             
-            # Update the news in the database
-            NewsService.update(news_id, {
-                "impact_prediction": updated_news.impact_prediction,
-                "impact_score": updated_news.impact_score
-            })
+            # Update the news in the database with the prediction
+            # This part would require implementing a new update method in NewsController
+            # For now, we can just return the news object
             
-            return updated_news
+            return news
         except Exception as e:
             logger.error(f"Error predicting impact: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
     @staticmethod
-    async def process_all_news_for_user(user_id: str, background_tasks: BackgroundTasks):
+    async def process_all_news_for_user(user_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
         """
         Process all news and predict impact for a user's portfolio
         This is a background task as it may take some time
         """
         # Get the user's portfolio
-        portfolio = PortfolioAssetService.get_all_by_user(user_id)
+        portfolio = PortfolioController.get_all_by_user(db, user_id)
         if not portfolio:
             raise HTTPException(status_code=404, detail="User has no portfolio assets")
         
         # Start background task to process all news
-        background_tasks.add_task(PredictionController._process_all_news_background, portfolio)
+        background_tasks.add_task(PredictionController._process_all_news_background, portfolio, db)
         
         return {"message": "Processing started in background", "status": "success"}
 
     @staticmethod
-    async def _process_all_news_background(portfolio: List):
+    async def _process_all_news_background(portfolio: List, db: Session):
         """
         Background task to process all news
         """
         try:
             # Get all news
-            news_list = NewsService.get_all(limit=100)
+            news_list = NewsController.get_all(db, limit=100)
             
             # Process all news
             updated_news_list = []
             # updated_news_list = process_all_news(news_list, portfolio)
             
-            # Update all news in the database
-            for news in updated_news_list:
-                NewsService.update(news.id, {
-                    "impact_prediction": news.impact_prediction,
-                    "impact_score": news.impact_score
-                })
-                
+            # Update all news in the database - would need to implement update method in NewsController
+            
             logger.info(f"Processed {len(news_list)} news articles")
         except Exception as e:
             logger.error(f"Error processing news: {e}")
 
     @staticmethod
-    async def get_portfolio_impact_summary(user_id: str):
+    async def get_portfolio_impact_summary(user_id: int, db: Session = Depends(get_db)):
         """
         Get a summary of news impact on a user's portfolio
         """
         # Get all news with impact predictions
-        all_news = NewsService.get_all(limit=100)
+        all_news = NewsController.get_all(db, limit=100)
         
         # Filter news with impact predictions
         positive_news = [n for n in all_news if n.impact_prediction == ImpactType.POSITIVE]
@@ -132,13 +127,13 @@ class PredictionController:
 
 # Define routes
 @prediction_router.get("/news/{news_id}/impact/{user_id}", response_model=NewsModel)
-async def predict_news_impact_for_user(news_id: str, user_id: str):
-    return await PredictionController.predict_news_impact_for_user(news_id=news_id, user_id=user_id)
+async def predict_news_impact_for_user(news_id: str, user_id: int, db: Session = Depends(get_db)):
+    return await PredictionController.predict_news_impact_for_user(news_id=news_id, user_id=user_id, db=db)
 
 @prediction_router.post("/process-all-news/{user_id}", response_model=Dict)
-async def process_all_news_for_user(user_id: str, background_tasks: BackgroundTasks):
-    return await PredictionController.process_all_news_for_user(user_id=user_id, background_tasks=background_tasks)
+async def process_all_news_for_user(user_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    return await PredictionController.process_all_news_for_user(user_id=user_id, background_tasks=background_tasks, db=db)
 
 @prediction_router.get("/portfolio/{user_id}/impact", response_model=Dict)
-async def get_portfolio_impact_summary(user_id: str):
-    return await PredictionController.get_portfolio_impact_summary(user_id=user_id)
+async def get_portfolio_impact_summary(user_id: int, db: Session = Depends(get_db)):
+    return await PredictionController.get_portfolio_impact_summary(user_id=user_id, db=db)

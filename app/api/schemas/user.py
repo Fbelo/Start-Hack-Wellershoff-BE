@@ -13,7 +13,6 @@ class UserModel(BaseModel):
     name: str
     email: EmailStr
     profile_picture: Optional[str] = None
-    preferences: Dict[str, bool] = Field(default_factory=dict)  # User preferences like notification settings
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
     last_login: Optional[datetime] = None
@@ -38,12 +37,10 @@ class UserCreate(BaseModel):
     name: str
     email: EmailStr
     profile_picture: Optional[str] = None
-    preferences: Dict[str, bool] = Field(default_factory=dict)
 
 # Update model for updating users
 class UserUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
     profile_picture: Optional[str] = None
-    preferences: Optional[Dict[str, bool]] = None
     last_login: Optional[datetime] = None

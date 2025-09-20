@@ -1,14 +1,13 @@
 """
 Base models for SQLAlchemy
 """
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Table, Text, Enum as SQLAEnum
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Table, Text, Enum as SQLAEnum
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import JSONB, ARRAY
-from sqlalchemy.sql import func
 from datetime import datetime
 from app.db.database import Base, SCHEMA_NAME
-from app.api.schemas.news import ImpactType
 from app.api.schemas.portfolio_asset import AssetType
+from enum import Enum
+
 
 # Association table for many-to-many relationships
 news_categories = Table(
@@ -25,6 +24,13 @@ portfolio_asset_tags = Table(
     Column('tag_name', String)
 )
 
+class ImpactType(str, Enum):
+    VERY_POSITIVE = "very_positive"
+    POSITIVE = "positive"
+    UNSURE = "unsure"
+    NEGATIVE = "negative"
+    VERY_NEGATIVE = "very_negative"
+
 # SQLAlchemy model for users
 class User(Base):
     """
@@ -37,10 +43,11 @@ class User(Base):
     name = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=False, index=True)
     profile_picture = Column(String, nullable=True)
-    preferences = Column(JSONB, nullable=False, default={})
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     last_login = Column(DateTime, nullable=True)
+
+    portfolio_assets = relationship("PortfolioAsset", back_populates="user")
 
 # SQLAlchemy model for news
 class News(Base):
@@ -53,17 +60,25 @@ class News(Base):
     title = Column(String, nullable=False)
     content = Column(Text, nullable=False)
     summary = Column(String, nullable=True)
-    source = Column(String, nullable=False)
+
     url = Column(String, nullable=False, unique=True)
-    published_at = Column(DateTime, nullable=False)
     image_url = Column(String, nullable=True)
-    impact_prediction = Column(SQLAEnum(ImpactType), default=ImpactType.UNKNOWN)
-    impact_score = Column(Float, default=0.0)
+
+    impact_prediction = Column(SQLAEnum(ImpactType), nullable=True)
+    impact_prediction_justification = Column(String, nullable=True)
+
+
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     
     # Relationship with categories through association table
     categories = relationship("Category", secondary=news_categories, backref="news_articles")
+    
+    # Relationship with NewsUrl
+    news_urls = relationship("NewsUrl", back_populates="news_rel")
+    
+    # Relationship with sources through NewsUrl
+    sources = relationship("Source", secondary="news_url", viewonly=True)
 
 # Category model for the news categories
 class Category(Base):
@@ -84,17 +99,10 @@ class PortfolioAsset(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    logo = Column(String, nullable=True)
     symbol = Column(String, nullable=False)
     name = Column(String, nullable=False)
     asset_type = Column(SQLAEnum(AssetType), nullable=False)
-    quantity = Column(Float, nullable=False)
-    purchase_price = Column(Float, nullable=False)
-    current_price = Column(Float, nullable=True)
-    purchase_date = Column(DateTime, nullable=False)
-    sector = Column(String, nullable=True)
-    industry = Column(String, nullable=True)
-    country = Column(String, nullable=True)
-    asset_metadata = Column(JSONB, nullable=False, default={})  # Renamed from metadata to avoid conflict
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     
@@ -114,5 +122,42 @@ class Tag(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False, unique=True)
 
-# Set up the relationships
-User.portfolio_assets = relationship("PortfolioAsset", back_populates="user")
+class Source(Base):
+    """
+    SQLAlchemy model for news sources table
+    """
+    __tablename__ = "sources"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    codename = Column(String, nullable=False)
+    name = Column(String, nullable=False)
+    website = Column(String, nullable=False)
+    
+    # Relationship with NewsUrl
+    news_urls = relationship("NewsUrl", back_populates="source_rel")
+
+class NewsUrl(Base):
+    """
+    SQLAlchemy model for news URLs linking sources to news articles
+    """
+    __tablename__ = "news_url"
+
+    id = Column(Integer, primary_key=True, index=True)
+    source_id = Column(Integer, ForeignKey("sources.id"), nullable=False)
+    news_id = Column(Integer, ForeignKey("news.id"), nullable=False)
+    url = Column(String, nullable=False, unique=True)
+    published_at = Column(DateTime, nullable=False)
+    
+    # Relationships
+    source_rel = relationship("Source", back_populates="news_urls")
+    news_rel = relationship("News", back_populates="news_urls")
+    
+    # Ensure each URL is unique per source and news combination
+    __table_args__ = (
+        # Composite unique constraint for source_id and url
+        # This ensures a source cannot have duplicate URLs
+        # And URL can only belong to one source
+        # Same for news_id and url
+        # This ensures a URL can only belong to one news article
+        {'unique_constraint': ['source_id', 'url'], 'unique_constraint': ['news_id', 'url']}
+    )

@@ -43,8 +43,6 @@ def create_schema_if_not_exists():
             connection.execute(text(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA_NAME}"))
             connection.commit()
             print(f"Schema '{SCHEMA_NAME}' created successfully")
-        else:
-            print(f"Schema '{SCHEMA_NAME}' already exists")
         
         # Set search path for future queries
         connection.execute(text(f"SET search_path TO {SCHEMA_NAME}, public"))

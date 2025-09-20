@@ -1,8 +1,9 @@
 import asyncio
 import logging
 from app.scrapers.news_scraper import scrape_all_news
-from app.services.news import NewsService
-from app.api.schemas.news import NewsModel, ImpactType
+from app.api.controllers.news import NewsController
+from app.api.schemas.news import NewsModel, ImpactType, NewsCreate
+from app.db.database import get_db, SessionLocal
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -56,8 +57,22 @@ class NewsScraperScheduler:
                     news.impact_prediction = ImpactType.UNKNOWN
                     news.impact_score = 0.0
                     
+                    # Create a NewsCreate model for the controller
+                    news_create = NewsCreate(
+                        title=news.title,
+                        content=news.content,
+                        summary=news.summary,
+                        published_date=news.published_date,
+                        source=news.source,
+                        urls=news.urls,
+                        impact_prediction=ImpactType.UNKNOWN,
+                        impact_score=0.0,
+                        impact_prediction_justification=""
+                    )
+                    
                     # Save to database
-                    NewsService.create(news)
+                    with SessionLocal() as db:
+                        NewsController.create(db, news_create)
                     logger.info(f"Saved news: {news.title}")
                 else:
                     logger.info(f"News already exists: {news.title}")
@@ -70,13 +85,15 @@ class NewsScraperScheduler:
         This is a simple implementation, in a real app you might want to use a more sophisticated approach
         """
         try:
-            # Search for news with this title
-            results = NewsService.search(title)
-            
-            # Check if any result has exactly the same title
-            for news in results:
-                if news.title.lower() == title.lower():
-                    return news
+            # Get a database session
+            with SessionLocal() as db:
+                # Search for news with this title
+                news_list = NewsController.get_all(db)
+                
+                # Check if any result has exactly the same title
+                for news in news_list:
+                    if news.title.lower() == title.lower():
+                        return news
             
             return None
         except Exception as e:
