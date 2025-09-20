@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import logging
-from app.models.news import NewsModel
+from app.api.schemas.news import NewsModel
 from dotenv import load_dotenv
 import re
 import time
@@ -11,6 +11,16 @@ import random
 
 # Load environment variables
 load_dotenv()
+
+"""
+Current scrapers
+financial times - "https://www.ft.com/news-feed"
+bloomberg - "https://www.bloomberg.com/latest"
+yahoo finance - "https://finance.yahoo.com/topic/latest-news/"
+reuters - "https://www.reuters.com/business/finance/"
+
+
+"""
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -66,7 +76,7 @@ class FinancialTimesScraper(NewsScraper):
     """
     def __init__(self):
         super().__init__()
-        self.base_url = "https://www.ft.com"
+        self.base_url = "https://www.ft.com/news-feed"
         self.markets_url = "https://www.ft.com/markets"
         
     def parse_html(self, html: str) -> List[Dict[str, Any]]:

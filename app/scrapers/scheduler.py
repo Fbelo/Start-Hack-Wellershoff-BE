@@ -2,7 +2,7 @@ import asyncio
 import logging
 from app.scrapers.news_scraper import scrape_all_news
 from app.services.news import NewsService
-from app.models.news import NewsModel, ImpactType
+from app.api.schemas.news import NewsModel, ImpactType
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

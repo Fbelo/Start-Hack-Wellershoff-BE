@@ -1,11 +1,9 @@
-from typing import List, Optional, Dict
+from typing import List, Optional
 from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import desc
-from app.db.database import get_db
-from app.models.portfolio_asset import PortfolioAsset, PortfolioAssetModel, PortfolioAssetCreate, PortfolioAssetUpdate, Tag, AssetType
-from fastapi import Depends, HTTPException
+from app.db.models import PortfolioAsset, Tag
+from app.api.schemas.portfolio_asset import PortfolioAssetModel, PortfolioAssetCreate, PortfolioAssetUpdate
 
 class PortfolioAssetService:
     """

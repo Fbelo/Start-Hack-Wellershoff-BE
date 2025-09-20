@@ -1,12 +1,10 @@
+"""
+Pydantic schemas for Portfolio Assets API
+"""
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, List
 from datetime import datetime
 from enum import Enum
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Enum as SQLAEnum
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import relationship
-from app.db.database import Base
-from app.db.models import portfolio_asset_tags
 
 class AssetType(str, Enum):
     STOCK = "stock"
@@ -17,50 +15,6 @@ class AssetType(str, Enum):
     COMMODITY = "commodity"
     OTHER = "other"
 
-# SQLAlchemy model for database operations
-class PortfolioAsset(Base):
-    """
-    SQLAlchemy model for portfolio assets table
-    """
-    __tablename__ = "portfolio_assets"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    symbol = Column(String, nullable=False)
-    name = Column(String, nullable=False)
-    asset_type = Column(SQLAEnum(AssetType), nullable=False)
-    quantity = Column(Float, nullable=False)
-    purchase_price = Column(Float, nullable=False)
-    current_price = Column(Float, nullable=True)
-    purchase_date = Column(DateTime, nullable=False)
-    sector = Column(String, nullable=True)
-    industry = Column(String, nullable=True)
-    country = Column(String, nullable=True)
-    asset_metadata = Column(JSONB, nullable=False, default={})  # Renamed from metadata to avoid conflict
-    created_at = Column(DateTime, default=datetime.now)
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-    
-    # Relationship with user
-    user = relationship("User", back_populates="portfolio_assets")
-    
-    # Relationship with tags through association table
-    tags = relationship("Tag", secondary=portfolio_asset_tags, backref="portfolio_assets")
-
-# User model relationship definition
-from app.models.user import User
-User.portfolio_assets = relationship("PortfolioAsset", back_populates="user")
-
-# Tag model for portfolio asset tags
-class Tag(Base):
-    """
-    SQLAlchemy model for tags table
-    """
-    __tablename__ = "tags"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, unique=True)
-
-# Pydantic model for API requests/responses
 class PortfolioAssetModel(BaseModel):
     """
     Pydantic model for financial assets in a user's portfolio

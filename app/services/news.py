@@ -1,11 +1,10 @@
-from typing import List, Optional, Dict
+from typing import List, Optional
 from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import desc
-from app.db.database import get_db
-from app.models.news import News, NewsModel, NewsCreate, NewsUpdate, Category, ImpactType
-from fastapi import Depends, HTTPException
+from app.db.models import News, Category
+from app.api.schemas.news import NewsModel, NewsCreate, NewsUpdate, ImpactType
 
 class NewsService:
     """

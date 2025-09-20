@@ -11,7 +11,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import database connection
 from app.db.database import engine, Base, SessionLocal, SCHEMA_NAME, create_schema_if_not_exists
-from app.models.user import User, UserModel
+from app.db.models import User
+from app.api.schemas.user import UserModel
 
 def test_database_connection():
     """Test the connection to the Supabase database"""

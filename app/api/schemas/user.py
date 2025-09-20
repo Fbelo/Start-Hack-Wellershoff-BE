@@ -1,28 +1,10 @@
+"""
+Pydantic schemas for User API
+"""
 from pydantic import BaseModel, Field, EmailStr
 from typing import Optional, Dict
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, Boolean
-from sqlalchemy.dialects.postgresql import JSONB
-from app.db.database import Base, SCHEMA_NAME
 
-# SQLAlchemy model for database operations
-class User(Base):
-    """
-    SQLAlchemy model for users table
-    """
-    __tablename__ = "users"
-    __table_args__ = {'schema': SCHEMA_NAME}  # Explicitly set the schema
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False)
-    email = Column(String, unique=True, nullable=False, index=True)
-    profile_picture = Column(String, nullable=True)
-    preferences = Column(JSONB, nullable=False, default={})
-    created_at = Column(DateTime, default=datetime.now)
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-    last_login = Column(DateTime, nullable=True)
-
-# Pydantic model for API requests/responses
 class UserModel(BaseModel):
     """
     Pydantic model for application users

@@ -12,7 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import database connection
 from app.db.database import engine, Base, SessionLocal, SCHEMA_NAME
-from app.models.user import User
+from app.db.models import User
 
 def test_schema_creation():
     """Test that the schema exists and is being used"""

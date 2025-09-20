@@ -26,19 +26,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Import and include routers
-from app.routers import (
-    news, 
-    portfolio,
-    prediction,
-    user
-)
+# Import and include router
+from app.api.router import router
 
-# Include all routers
-app.include_router(news.router, prefix="/api/news", tags=["news"])
-app.include_router(portfolio.router, prefix="/api/portfolio", tags=["portfolio"])
-app.include_router(prediction.router, prefix="/api/prediction", tags=["prediction"])
-app.include_router(user.router, prefix="/api/users", tags=["users"])
+# Include the main router
+app.include_router(router)
 
 @app.get("/")
 async def root():

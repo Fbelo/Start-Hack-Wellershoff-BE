@@ -1,11 +1,10 @@
+"""
+Pydantic schemas for News API
+"""
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
-from sqlalchemy import Column, Integer, String, DateTime, Float, Text, Enum as SQLAEnum
-from sqlalchemy.orm import relationship
-from app.db.database import Base
-from app.db.models import news_categories
 
 class ImpactType(str, Enum):
     POSITIVE = "positive"
@@ -13,40 +12,6 @@ class ImpactType(str, Enum):
     NEUTRAL = "neutral"
     UNKNOWN = "unknown"
 
-# SQLAlchemy model for database operations
-class News(Base):
-    """
-    SQLAlchemy model for news table
-    """
-    __tablename__ = "news"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    title = Column(String, nullable=False)
-    content = Column(Text, nullable=False)
-    summary = Column(String, nullable=True)
-    source = Column(String, nullable=False)
-    url = Column(String, nullable=False, unique=True)
-    published_at = Column(DateTime, nullable=False)
-    image_url = Column(String, nullable=True)
-    impact_prediction = Column(SQLAEnum(ImpactType), default=ImpactType.UNKNOWN)
-    impact_score = Column(Float, default=0.0)
-    created_at = Column(DateTime, default=datetime.now)
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-    
-    # Relationship with categories through association table
-    categories = relationship("Category", secondary=news_categories, backref="news_articles")
-
-# Category model for the news categories
-class Category(Base):
-    """
-    SQLAlchemy model for categories table
-    """
-    __tablename__ = "categories"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, unique=True)
-
-# Pydantic model for API requests/responses
 class NewsModel(BaseModel):
     """
     Pydantic model for financial news articles
