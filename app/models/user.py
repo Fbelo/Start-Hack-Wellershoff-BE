@@ -3,7 +3,7 @@ from typing import Optional, Dict
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, Boolean
 from sqlalchemy.dialects.postgresql import JSONB
-from app.db.postgres.database import Base
+from app.db.database import Base, SCHEMA_NAME
 
 # SQLAlchemy model for database operations
 class User(Base):
@@ -11,6 +11,7 @@ class User(Base):
     SQLAlchemy model for users table
     """
     __tablename__ = "users"
+    __table_args__ = {'schema': SCHEMA_NAME}  # Explicitly set the schema
     
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)

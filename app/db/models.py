@@ -5,7 +5,7 @@ from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Foreig
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 from sqlalchemy.sql import func
-from app.db.postgres.database import Base
+from app.db.database import Base
 
 # Association table for many-to-many relationships
 news_categories = Table(

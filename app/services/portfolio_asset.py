@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import desc
-from app.db.postgres.database import get_db
+from app.db.database import get_db
 from app.models.portfolio_asset import PortfolioAsset, PortfolioAssetModel, PortfolioAssetCreate, PortfolioAssetUpdate, Tag, AssetType
 from fastapi import Depends, HTTPException
 
@@ -72,7 +72,7 @@ class PortfolioAssetService:
             sector=asset_data.sector,
             industry=asset_data.industry,
             country=asset_data.country,
-            metadata=asset_data.metadata,
+            asset_metadata=asset_data.metadata,  # Note: model field renamed to asset_metadata
             created_at=datetime.now(),
             updated_at=datetime.now(),
             tags=tags
@@ -118,7 +118,7 @@ class PortfolioAssetService:
         if asset_data.country is not None:
             asset.country = asset_data.country
         if asset_data.metadata is not None:
-            asset.metadata = asset_data.metadata
+            asset.asset_metadata = asset_data.metadata  # Note: model field renamed to asset_metadata
         
         # Update tags if provided
         if asset_data.tags is not None:

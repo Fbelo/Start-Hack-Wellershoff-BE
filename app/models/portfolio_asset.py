@@ -5,8 +5,8 @@ from enum import Enum
 from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Enum as SQLAEnum
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
-from app.db.postgres.database import Base
-from app.db.postgres.models import portfolio_asset_tags
+from app.db.database import Base
+from app.db.models import portfolio_asset_tags
 
 class AssetType(str, Enum):
     STOCK = "stock"
@@ -36,7 +36,7 @@ class PortfolioAsset(Base):
     sector = Column(String, nullable=True)
     industry = Column(String, nullable=True)
     country = Column(String, nullable=True)
-    metadata = Column(JSONB, nullable=False, default={})
+    asset_metadata = Column(JSONB, nullable=False, default={})  # Renamed from metadata to avoid conflict
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     
@@ -78,7 +78,7 @@ class PortfolioAssetModel(BaseModel):
     industry: Optional[str] = None
     country: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
-    metadata: Dict[str, str] = Field(default_factory=dict)  # Additional asset-specific data
+    asset_metadata: Dict[str, str] = Field(default_factory=dict)  # Additional asset-specific data
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
     
@@ -115,7 +115,7 @@ class PortfolioAssetCreate(BaseModel):
     industry: Optional[str] = None
     country: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
-    metadata: Dict[str, str] = Field(default_factory=dict)
+    asset_metadata: Dict[str, str] = Field(default_factory=dict)
 
 # Update model for updating portfolio assets
 class PortfolioAssetUpdate(BaseModel):
@@ -130,7 +130,7 @@ class PortfolioAssetUpdate(BaseModel):
     industry: Optional[str] = None
     country: Optional[str] = None
     tags: Optional[List[str]] = None
-    metadata: Optional[Dict[str, str]] = None
+    asset_metadata: Optional[Dict[str, str]] = None
     
 class PortfolioAssetExtended(PortfolioAssetModel):
     """

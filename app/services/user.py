@@ -2,7 +2,7 @@ from typing import List, Optional, Dict
 from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from app.db.postgres.database import get_db
+from app.db.database import get_db
 from app.models.user import User, UserModel, UserCreate, UserUpdate
 from fastapi import Depends, HTTPException
 

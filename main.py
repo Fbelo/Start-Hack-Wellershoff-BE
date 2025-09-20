@@ -3,7 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 import logging
 
-from app.db.postgres.database import engine, Base
+from app.db.database import engine, Base, create_schema_if_not_exists
+
+# Create schema if it doesn't exist
+create_schema_if_not_exists()
 
 # Create the database tables
 Base.metadata.create_all(bind=engine)

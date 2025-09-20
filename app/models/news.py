@@ -4,8 +4,8 @@ from datetime import datetime
 from enum import Enum
 from sqlalchemy import Column, Integer, String, DateTime, Float, Text, ForeignKey, Enum as SQLAEnum
 from sqlalchemy.orm import relationship
-from app.db.postgres.database import Base
-from app.db.postgres.models import news_categories
+from app.db.database import Base
+from app.db.models import news_categories
 
 class ImpactType(str, Enum):
     POSITIVE = "positive"
