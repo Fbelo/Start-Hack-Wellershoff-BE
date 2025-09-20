@@ -93,7 +93,6 @@ class NewsController:
             image_url=news_data.image_url,
             impact_prediction=news_data.impact_prediction,
             impact_prediction_justification=news_data.impact_prediction_justification,
-            impact_score=news_data.impact_score,
             created_at=datetime.now(),
             updated_at=datetime.now(),
             categories=categories
@@ -130,8 +129,6 @@ class NewsController:
             news.impact_prediction = news_data.impact_prediction
         if news_data.impact_prediction_justification is not None:
             news.impact_prediction_justification = news_data.impact_prediction_justification
-        if news_data.impact_score is not None:
-            news.impact_score = news_data.impact_score
         
         # Update categories if provided
         if news_data.category_names is not None:
@@ -182,7 +179,7 @@ class NewsController:
         return [NewsModel.model_validate(item) for item in news]
     
     @staticmethod
-    def predict_impact(db: Session, news_id: int, impact_type: ImpactType, impact_score: float) -> Optional[NewsModel]:
+    def predict_impact(db: Session, news_id: int, impact_type: ImpactType) -> Optional[NewsModel]:
         """
         Update the impact prediction for a news article
         """
@@ -191,7 +188,6 @@ class NewsController:
             return None
         
         news.impact_prediction = impact_type
-        news.impact_score = impact_score
         news.updated_at = datetime.now()
         
         try:
@@ -307,13 +303,12 @@ class NewsController:
     async def api_predict_impact(
         news_id: int,
         impact_type: ImpactType,
-        impact_score: float = Body(..., ge=-1.0, le=1.0),
         db: Session = Depends(get_db)
     ):
         """
         Update the impact prediction for a news article
         """
-        updated_news = NewsController.predict_impact(db, news_id, impact_type, impact_score)
+        updated_news = NewsController.predict_impact(db, news_id, impact_type)
         if not updated_news:
             raise HTTPException(status_code=404, detail="News article not found")
         return updated_news
@@ -370,12 +365,10 @@ async def delete_news(news_id: int, db: Session = Depends(get_db)):
 async def predict_impact(
     news_id: int, 
     impact_type: ImpactType, 
-    impact_score: float = Body(..., ge=-1.0, le=1.0),
     db: Session = Depends(get_db)
 ):
     return await NewsController.api_predict_impact(
         news_id=news_id, 
         impact_type=impact_type, 
-        impact_score=impact_score,
         db=db
     )

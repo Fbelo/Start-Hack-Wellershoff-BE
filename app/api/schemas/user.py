@@ -16,6 +16,7 @@ class UserModel(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
     last_login: Optional[datetime] = None
+    news: Optional[list] = None
     
     class Config:
         from_attributes = True  # Allows the model to be created from an ORM model

@@ -97,24 +97,8 @@ class PredictionController:
         neutral_news = [n for n in all_news if n.impact_prediction == ImpactType.NEUTRAL]
         unknown_news = [n for n in all_news if n.impact_prediction == ImpactType.UNKNOWN]
         
-        # Calculate average impact score
-        if positive_news or negative_news:
-            impact_scores = [n.impact_score for n in all_news if n.impact_prediction != ImpactType.UNKNOWN]
-            avg_impact_score = sum(impact_scores) / len(impact_scores) if impact_scores else 0
-        else:
-            avg_impact_score = 0
-        
-        # Determine overall trend
-        if avg_impact_score > 0.2:
-            overall_trend = "positive"
-        elif avg_impact_score < -0.2:
-            overall_trend = "negative"
-        else:
-            overall_trend = "neutral"
         
         return {
-            "overall_trend": overall_trend,
-            "avg_impact_score": avg_impact_score,
             "positive_news_count": len(positive_news),
             "negative_news_count": len(negative_news),
             "neutral_news_count": len(neutral_news),

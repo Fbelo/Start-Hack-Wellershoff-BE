@@ -55,7 +55,6 @@ class NewsScraperScheduler:
                 if not existing_news:
                     # Set impact prediction to UNKNOWN, will be processed by the prediction service
                     news.impact_prediction = ImpactType.UNKNOWN
-                    news.impact_score = 0.0
                     
                     # Create a NewsCreate model for the controller
                     news_create = NewsCreate(
@@ -66,7 +65,6 @@ class NewsScraperScheduler:
                         source=news.source,
                         urls=news.urls,
                         impact_prediction=ImpactType.UNKNOWN,
-                        impact_score=0.0,
                         impact_prediction_justification=""
                     )
                     

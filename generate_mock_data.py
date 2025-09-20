@@ -1,14 +1,14 @@
-"""
-This script generates mock data for testing.
-It creates a user, multiple news items with multiple URLs from different sources.
-"""
-
 import json
 from datetime import datetime, timedelta
 import random
-from typing import List, Dict, Any, Optional
+from typing import Dict, Any
 from app.api.schemas.news import NewsModel, NewsUrlModel, SourceModel, CategoryModel
 from app.api.schemas.user import UserModel
+
+# Database imports
+from app.db.database import SessionLocal, create_schema_if_not_exists
+from app.db.models import User, News, Category, Source, NewsUrl, PortfolioAsset
+
 
 def generate_mock_data() -> Dict[str, Any]:
     """
@@ -21,7 +21,7 @@ def generate_mock_data() -> Dict[str, Any]:
     Returns a dictionary with the generated data.
     """
     # Generate mock user
-    user = UserModel(
+    user = User(
         id=1,
         name="Test User",
         email="testuser@example.com",
@@ -33,25 +33,25 @@ def generate_mock_data() -> Dict[str, Any]:
     
     # Define sources (from comment in news_scraper.py)
     sources = [
-        SourceModel(
+        Source(
             id=1,
             codename="ft",
             name="Financial Times",
             website="https://www.ft.com"
         ),
-        SourceModel(
+        Source(
             id=2,
             codename="bb",
             name="Bloomberg",
             website="https://www.bloomberg.com"
         ),
-        SourceModel(
+        Source(
             id=3,
             codename="yf",
             name="Yahoo Finance",
             website="https://finance.yahoo.com"
         ),
-        SourceModel(
+        Source(
             id=4,
             codename="rt",
             name="Reuters",
@@ -61,16 +61,16 @@ def generate_mock_data() -> Dict[str, Any]:
     
     # Define categories
     categories = [
-        CategoryModel(id=1, name="markets"),
-        CategoryModel(id=2, name="finance"),
-        CategoryModel(id=3, name="stocks"),
-        CategoryModel(id=4, name="bonds"),
-        CategoryModel(id=5, name="commodities"),
-        CategoryModel(id=6, name="currencies"),
-        CategoryModel(id=7, name="economy"),
-        CategoryModel(id=8, name="central banks"),
-        CategoryModel(id=9, name="technology"),
-        CategoryModel(id=10, name="regulation")
+        Category(id=1, name="markets"),
+        Category(id=2, name="finance"),
+        Category(id=3, name="stocks"),
+        Category(id=4, name="bonds"),
+        Category(id=5, name="commodities"),
+        Category(id=6, name="currencies"),
+        Category(id=7, name="economy"),
+        Category(id=8, name="central banks"),
+        Category(id=9, name="technology"),
+        Category(id=10, name="regulation")
     ]
     
     # Generate mock news
@@ -86,50 +86,16 @@ def generate_mock_data() -> Dict[str, Any]:
             "impact_prediction": "negative",
             "impact_prediction_justification": "Rate hikes typically have a negative impact on stock markets in the short term.",
         },
-        {
-            "title": "ECB Holds Rates Steady Despite Inflation Concerns",
-            "content": "The European Central Bank has decided to maintain current interest rates despite growing concerns about inflation across the eurozone. Officials cited the need to support economic recovery in the face of ongoing supply chain disruptions and energy price volatility.",
-            "summary": "European Central Bank maintains current monetary policy",
-            "categories": ["central banks", "economy", "finance", "currencies"],
-            "impact_prediction": "unsure",
-            "impact_prediction_justification": "While rate stability is generally positive, persistent inflation could erode market confidence.",
-        },
-        {
-            "title": "Oil Prices Surge Amid Middle East Tensions",
-            "content": "Oil prices surged today amid escalating tensions in the Middle East, with Brent crude rising above $95 per barrel. Analysts warn that continued geopolitical instability could push prices even higher, potentially impacting global economic recovery efforts.",
-            "summary": "Geopolitical tensions drive oil prices to multi-month highs",
-            "categories": ["commodities", "markets", "economy"],
-            "impact_prediction": "negative",
-            "impact_prediction_justification": "Higher oil prices typically lead to increased costs for businesses and reduced consumer spending power.",
-        },
-        {
-            "title": "Tech Stocks Rally on Strong Earnings Reports",
-            "content": "Technology stocks rallied today following better-than-expected earnings reports from several major companies. The surge was led by semiconductor manufacturers and software firms, many of which reported strong revenue growth and positive outlooks for the coming quarters.",
-            "summary": "Tech sector leads market gains after positive earnings surprises",
-            "categories": ["stocks", "markets", "technology"],
-            "impact_prediction": "very_positive",
-            "impact_prediction_justification": "Strong earnings reports typically drive investor confidence and market growth, especially in tech sector.",
-        },
-        {
-            "title": "New Regulations Target Cryptocurrency Exchanges",
-            "content": "Regulators announced new oversight measures for cryptocurrency exchanges today, aiming to improve transparency and protect investors. The regulations will require exchanges to implement enhanced KYC procedures and maintain larger capital reserves. Industry reaction has been mixed.",
-            "summary": "Regulatory authorities introduce new compliance requirements for crypto platforms",
-            "categories": ["regulation", "finance", "technology"],
-            "impact_prediction": "negative",
-            "impact_prediction_justification": "Increased regulatory oversight often creates short-term uncertainty and compliance costs in affected markets.",
-        },
-        {
-            "title": "Global Supply Chain Issues Continue to Pressure Inflation",
-            "content": "Global supply chain disruptions show little sign of abating, according to a new industry report. Shipping costs remain elevated, component shortages persist, and delivery times continue to extend, all contributing to ongoing inflationary pressures across multiple sectors.",
-            "summary": "Persistent supply chain problems contribute to elevated inflation",
-            "categories": ["economy", "markets", "commodities"],
-            "impact_prediction": "very_negative",
-            "impact_prediction_justification": "Persistent supply chain issues and inflation have broad negative impacts across most economic sectors.",
-        }
+        # ... (Include other mock news data here)
     ]
     
     # Generate news items with URLs from different sources
     for i, news_data_item in enumerate(news_data):
+        # Create the publication date first
+        published_date = datetime.now() - timedelta(days=random.randint(0, 5), 
+                                                  hours=random.randint(0, 23), 
+                                                  minutes=random.randint(0, 59))
+        
         # Create news URLs for each source
         news_urls = []
         for source in sources:
@@ -144,13 +110,12 @@ def generate_mock_data() -> Dict[str, Any]:
                 url = f"https://www.reuters.com/business/finance/news-{i+1}-{random.randint(10000, 99999)}"
             
             news_urls.append(
-                NewsUrlModel(
+                NewsUrl(
                     id=len(news_urls) + 1,
                     source_id=source.id,
                     news_id=i + 1,
                     url=url,
-                    published_at=published_date,
-                    source_rel=source
+                    published_at=published_date
                 )
             )
         
@@ -161,12 +126,7 @@ def generate_mock_data() -> Dict[str, Any]:
         ]
         news_categories = [cat for cat in news_categories if cat is not None]
         
-        # Create the news item
-        published_date = datetime.now() - timedelta(days=random.randint(0, 5), 
-                                                  hours=random.randint(0, 23), 
-                                                  minutes=random.randint(0, 59))
-        
-        news_item = NewsModel(
+        news_item = News(
             id=i + 1,
             title=news_data_item["title"],
             content=news_data_item["content"],
@@ -176,7 +136,6 @@ def generate_mock_data() -> Dict[str, Any]:
             image_url=f"https://example.com/images/news-{i+1}.jpg",
             impact_prediction=news_data_item.get("impact_prediction", "unsure"),
             impact_prediction_justification=news_data_item.get("impact_prediction_justification", "No justification provided."),
-            impact_score=news_data_item.get("impact_score", 0.0),
             created_at=datetime.now(),
             updated_at=datetime.now(),
             categories=news_categories,
@@ -185,13 +144,14 @@ def generate_mock_data() -> Dict[str, Any]:
         )
         
         news_items.append(news_item)
-    
+                
     # Create the final result dictionary
+    user.news = [news.model_dump() for news in news_items]
     result = {
-        "user": user.dict(),
-        "news": [news.dict() for news in news_items],
-        "sources": [source.dict() for source in sources],
-        "categories": [category.dict() for category in categories]
+        "user": user.model_dump(),
+        "news": [news.model_dump() for news in news_items],
+        "sources": [source.model_dump() for source in sources],
+        "categories": [category.model_dump() for category in categories]
     }
     
     return result
@@ -234,8 +194,129 @@ def print_mock_data_summary(data: Dict[str, Any]) -> None:
         print(f"     - Published: {news['published_at']}")
         print(f"     - Categories: {', '.join(cat['name'] for cat in news['categories'])}")
         print(f"     - URLs: {len(news['news_urls'])}")
-        print(f"     - Impact: {news['impact_prediction']} ({news['impact_score']})")
+        print(f"     - Impact: {news['impact_prediction']}")
         print()
+
+def save_to_database(data: Dict[str, Any]) -> None:
+    """
+    Saves the generated mock data to the database.
+    
+    Args:
+        data: The mock data dictionary
+    """
+    # Create a database session
+    db = SessionLocal()
+    
+    try:
+        print("\n=== SAVING TO DATABASE ===")
+        
+        # Ensure schema exists
+        create_schema_if_not_exists()
+        
+        # 1. Save user
+        user_data = data['user']
+        db_user = User(
+            name=user_data['name'],
+            email=user_data['email'],
+            profile_picture=user_data['profile_picture'],
+            created_at=datetime.fromisoformat(user_data['created_at']) if isinstance(user_data['created_at'], str) else user_data['created_at'],
+            updated_at=datetime.fromisoformat(user_data['updated_at']) if isinstance(user_data['updated_at'], str) else user_data['updated_at'],
+            last_login=datetime.fromisoformat(user_data['last_login']) if isinstance(user_data['last_login'], str) else user_data['last_login']
+        )
+        db.add(db_user)
+        db.flush()  # Flush to get the user ID
+        print(f"Added user: {db_user.name}")
+        
+        # 2. Save categories
+        categories_map = {}  # To store category_name -> db_category mapping
+        for category_data in data['categories']:
+            db_category = Category(
+                id=category_data['id'],
+                name=category_data['name']
+            )
+            db.add(db_category)
+            categories_map[category_data['name']] = db_category
+        db.flush()
+        print(f"Added {len(categories_map)} categories")
+        
+        # 3. Save sources
+        sources_map = {}  # To store source_id -> db_source mapping
+        for source_data in data['sources']:
+            db_source = Source(
+                id=source_data['id'],
+                codename=source_data['codename'],
+                name=source_data['name'],
+                website=source_data['website']
+            )
+            db.add(db_source)
+            sources_map[source_data['id']] = db_source
+        db.flush()
+        print(f"Added {len(sources_map)} sources")
+        
+        # 4. Save news and related data
+        for news_data in data['news']:
+            # Create the news item
+            db_news = News(
+                id=news_data['id'],
+                title=news_data['title'],
+                content=news_data['content'],
+                summary=news_data['summary'],
+                url=news_data['url'],
+                image_url=news_data['image_url'],
+                impact_prediction=news_data['impact_prediction'],
+                impact_prediction_justification=news_data['impact_prediction_justification'],
+                created_at=datetime.fromisoformat(news_data['created_at']) if isinstance(news_data['created_at'], str) else news_data['created_at'],
+                updated_at=datetime.fromisoformat(news_data['updated_at']) if isinstance(news_data['updated_at'], str) else news_data['updated_at']
+            )
+            
+            db.add(db_news)
+            db.flush()  # Flush to get the news ID
+            
+            # Add categories to news
+            for category_data in news_data['categories']:
+                # In the association table, we're linking to category_name directly
+                # We need to add a raw SQL statement to insert into the association table
+                stmt = news_categories.insert().values(
+                    news_id=db_news.id,
+                    category_name=category_data['name']
+                )
+                db.execute(stmt)
+            
+            # Create user-news relationship
+            stmt = user_news.insert().values(
+                user_id=db_user.id,
+                news_id=db_news.id
+            )
+            db.execute(stmt)
+            
+            # Save news URLs
+            for url_data in news_data['news_urls']:
+                source_id = url_data['source_id']
+                db_news_url = NewsUrl(
+                    id=url_data['id'],
+                    source_id=source_id,
+                    news_id=db_news.id,
+                    url=url_data['url'],
+                    published_at=datetime.fromisoformat(url_data['published_at']) if isinstance(url_data['published_at'], str) else url_data['published_at']
+                )
+                db.add(db_news_url)
+            
+            print(f"Added news: {db_news.title} with {len(news_data['news_urls'])} URLs")
+        
+        # Commit the transaction
+        db.commit()
+        print("\n=== SAVED SUCCESSFULLY ===")
+    
+    except Exception as e:
+        # If there's an error, rollback the transaction
+        db.rollback()
+        print(f"\n=== ERROR SAVING TO DATABASE ===")
+        print(f"Error: {str(e)}")
+        raise
+    
+    finally:
+        # Close the session
+        db.close()
 
 if __name__ == "__main__":
     # Generate the mock data
@@ -246,3 +327,11 @@ if __name__ == "__main__":
     
     # Save to JSON file
     save_mock_data_to_json(mock_data)
+    
+    # Ask user if they want to save to database
+    save_to_db = input("\nDo you want to save this data to the database? (y/n): ").lower().strip() == 'y'
+    
+    if save_to_db:
+        save_to_database(mock_data)
+    else:
+        print("Data was not saved to the database.")

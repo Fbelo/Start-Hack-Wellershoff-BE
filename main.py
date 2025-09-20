@@ -12,8 +12,8 @@ create_schema_if_not_exists()
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title="Wellershoff API",
-    description="Backend API for Wellershoff application",
+    title="Wellershoff & Partners API",
+    description="Backend API for Wellershoff & Partners application",
     version="0.1.0",
 )
 
@@ -34,7 +34,7 @@ app.include_router(router)
 
 @app.get("/")
 async def root():
-    return {"message": "Welcome to Wellershoff API"}
+    return {"message": "Welcome to Wellershoff & Partners API"}
 
 # Import news scraper scheduler
 from app.scrapers.scheduler import start_scheduler

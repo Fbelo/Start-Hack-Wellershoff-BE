@@ -77,7 +77,6 @@ class NewsModel(BaseModel):
                 "image_url": "https://ft.com/images/news123.jpg",
                 "impact_prediction": "negative",
                 "impact_prediction_justification": "Rate hikes typically have a negative impact on stock markets in the short term.",
-                "impact_score": -0.75,
                 "categories": [
                     {"name": "monetary policy"},
                     {"name": "interest rates"},
