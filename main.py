@@ -1,7 +1,12 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 import logging
+
+from app.db.postgres.database import engine, Base
+
+# Create the database tables
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Wellershoff API",
@@ -20,7 +25,6 @@ app.add_middleware(
 
 # Import and include routers
 from app.routers import (
-    example_router,
     news, 
     portfolio,
     prediction,
@@ -28,11 +32,10 @@ from app.routers import (
 )
 
 # Include all routers
-app.include_router(example_router.router)
-app.include_router(news.router)
-app.include_router(user.router)
-app.include_router(portfolio.router)
-app.include_router(prediction.router)
+app.include_router(news.router, prefix="/api/news", tags=["news"])
+app.include_router(portfolio.router, prefix="/api/portfolio", tags=["portfolio"])
+app.include_router(prediction.router, prefix="/api/prediction", tags=["prediction"])
+app.include_router(user.router, prefix="/api/users", tags=["users"])
 
 @app.get("/")
 async def root():

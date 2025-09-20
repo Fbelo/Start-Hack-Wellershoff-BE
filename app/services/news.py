@@ -1,9 +1,11 @@
-from typing import List, Optional
+from typing import List, Optional, Dict
 from datetime import datetime
-from app.db.firebase import get_firestore_db, COLLECTION_NEWS
-from app.models.news import NewsModel, ImpactType
-from google.cloud.firestore_v1.base_query import FieldFilter
-import uuid
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy import desc
+from app.db.postgres.database import get_db
+from app.models.news import News, NewsModel, NewsCreate, NewsUpdate, Category, ImpactType
+from fastapi import Depends, HTTPException
 
 class NewsService:
     """
@@ -11,140 +13,183 @@ class NewsService:
     """
     
     @staticmethod
-    def get_all(limit: int = 50, offset: int = 0) -> List[NewsModel]:
+    def get_all(db: Session, limit: int = 50, offset: int = 0) -> List[NewsModel]:
         """
         Get all news articles with pagination
         """
-        db = get_firestore_db()
-        news_ref = db.collection(COLLECTION_NEWS)
-        
-        # Query with ordering and pagination
-        query = news_ref.order_by("published_at", direction="DESCENDING").offset(offset).limit(limit)
-        news_docs = query.stream()
-        
-        result = []
-        for doc in news_docs:
-            news_data = doc.to_dict()
-            news_data["id"] = doc.id
-            result.append(NewsModel(**news_data))
-            
-        return result
+        news = db.query(News).order_by(desc(News.published_at)).offset(offset).limit(limit).all()
+        return [NewsModel.from_orm(item) for item in news]
     
     @staticmethod
-    def get_by_id(news_id: str) -> Optional[NewsModel]:
+    def get_by_id(db: Session, news_id: int) -> Optional[NewsModel]:
         """
         Get a news article by ID
         """
-        db = get_firestore_db()
-        news_doc = db.collection(COLLECTION_NEWS).document(news_id).get()
-        
-        if not news_doc.exists:
+        news = db.query(News).filter(News.id == news_id).first()
+        if not news:
             return None
-            
-        news_data = news_doc.to_dict()
-        news_data["id"] = news_doc.id
-        return NewsModel(**news_data)
+        return NewsModel.from_orm(news)
     
     @staticmethod
-    def create(news: NewsModel) -> NewsModel:
+    def get_by_category(db: Session, category: str, limit: int = 50, offset: int = 0) -> List[NewsModel]:
+        """
+        Get news articles by category
+        """
+        # Find the category
+        category_obj = db.query(Category).filter(Category.name == category).first()
+        if not category_obj:
+            return []
+        
+        # Get news articles with this category
+        news = db.query(News).filter(
+            News.categories.any(id=category_obj.id)
+        ).order_by(desc(News.published_at)).offset(offset).limit(limit).all()
+        
+        return [NewsModel.from_orm(item) for item in news]
+    
+    @staticmethod
+    def search(db: Session, query: str, limit: int = 50, offset: int = 0) -> List[NewsModel]:
+        """
+        Search news articles by title or content
+        """
+        search_term = f"%{query}%"
+        news = db.query(News).filter(
+            (News.title.ilike(search_term)) | (News.content.ilike(search_term))
+        ).order_by(desc(News.published_at)).offset(offset).limit(limit).all()
+        
+        return [NewsModel.from_orm(item) for item in news]
+    
+    @staticmethod
+    def create(db: Session, news_data: NewsCreate) -> NewsModel:
         """
         Create a new news article
         """
-        db = get_firestore_db()
+        # Process categories
+        categories = []
+        for category_name in news_data.categories:
+            # Find or create category
+            category = db.query(Category).filter(Category.name == category_name).first()
+            if not category:
+                category = Category(name=category_name)
+                db.add(category)
+                db.flush()  # Flush to get the ID
+            categories.append(category)
         
-        # Generate ID if not provided
-        if not news.id:
-            news.id = str(uuid.uuid4())
-            
-        # Set timestamps
-        news.created_at = datetime.now()
-        news.updated_at = datetime.now()
+        # Create news article
+        news = News(
+            title=news_data.title,
+            content=news_data.content,
+            summary=news_data.summary,
+            source=news_data.source,
+            url=news_data.url,
+            published_at=news_data.published_at,
+            image_url=news_data.image_url,
+            impact_prediction=news_data.impact_prediction,
+            impact_score=news_data.impact_score,
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+            categories=categories
+        )
         
-        # Save to Firestore
-        news_ref = db.collection(COLLECTION_NEWS).document(news.id)
-        news_ref.set(news.to_dict())
-        
-        return news
+        try:
+            db.add(news)
+            db.commit()
+            db.refresh(news)
+            return NewsModel.from_orm(news)
+        except IntegrityError as e:
+            db.rollback()
+            raise ValueError(f"Failed to create news article: {str(e)}")
     
     @staticmethod
-    def update(news_id: str, updates: dict) -> Optional[NewsModel]:
+    def update(db: Session, news_id: int, news_data: NewsUpdate) -> Optional[NewsModel]:
         """
         Update a news article
         """
-        db = get_firestore_db()
-        news_ref = db.collection(COLLECTION_NEWS).document(news_id)
-        news_doc = news_ref.get()
-        
-        if not news_doc.exists:
+        news = db.query(News).filter(News.id == news_id).first()
+        if not news:
             return None
-            
-        # Get current data and update
-        news_data = news_doc.to_dict()
-        news_data.update(updates)
-        news_data["updated_at"] = datetime.now()
         
-        # Save to Firestore
-        news_ref.update(news_data)
+        # Update fields if provided
+        if news_data.title is not None:
+            news.title = news_data.title
+        if news_data.content is not None:
+            news.content = news_data.content
+        if news_data.summary is not None:
+            news.summary = news_data.summary
+        if news_data.source is not None:
+            news.source = news_data.source
+        if news_data.image_url is not None:
+            news.image_url = news_data.image_url
+        if news_data.impact_prediction is not None:
+            news.impact_prediction = news_data.impact_prediction
+        if news_data.impact_score is not None:
+            news.impact_score = news_data.impact_score
         
-        # Return updated news
-        news_data["id"] = news_id
-        return NewsModel(**news_data)
+        # Update categories if provided
+        if news_data.categories is not None:
+            categories = []
+            for category_name in news_data.categories:
+                # Find or create category
+                category = db.query(Category).filter(Category.name == category_name).first()
+                if not category:
+                    category = Category(name=category_name)
+                    db.add(category)
+                    db.flush()  # Flush to get the ID
+                categories.append(category)
+            news.categories = categories
+        
+        news.updated_at = datetime.now()
+        
+        try:
+            db.commit()
+            db.refresh(news)
+            return NewsModel.from_orm(news)
+        except IntegrityError as e:
+            db.rollback()
+            raise ValueError(f"Failed to update news article: {str(e)}")
     
     @staticmethod
-    def delete(news_id: str) -> bool:
+    def delete(db: Session, news_id: int) -> bool:
         """
         Delete a news article
         """
-        db = get_firestore_db()
-        news_ref = db.collection(COLLECTION_NEWS).document(news_id)
-        news_doc = news_ref.get()
-        
-        if not news_doc.exists:
+        news = db.query(News).filter(News.id == news_id).first()
+        if not news:
             return False
-            
-        news_ref.delete()
-        return True
+        
+        try:
+            db.delete(news)
+            db.commit()
+            return True
+        except Exception:
+            db.rollback()
+            return False
     
     @staticmethod
-    def search(query: str, limit: int = 20) -> List[NewsModel]:
+    def get_latest(db: Session, limit: int = 10) -> List[NewsModel]:
         """
-        Search for news articles by title or content
-        Note: This is a simple implementation. For production, consider using Firebase's full-text search capabilities
-        or integrating with a dedicated search service like Algolia.
+        Get latest news articles
         """
-        db = get_firestore_db()
-        
-        # Search in title
-        title_query = db.collection(COLLECTION_NEWS).where(
-            filter=FieldFilter("title", ">=", query)
-        ).where(
-            filter=FieldFilter("title", "<=", query + "\uf8ff")
-        ).limit(limit)
-        
-        # Get results
-        results = []
-        for doc in title_query.stream():
-            news_data = doc.to_dict()
-            news_data["id"] = doc.id
-            results.append(NewsModel(**news_data))
-            
-        return results
+        news = db.query(News).order_by(desc(News.published_at)).limit(limit).all()
+        return [NewsModel.from_orm(item) for item in news]
     
     @staticmethod
-    def get_by_impact(impact_type: ImpactType, limit: int = 20) -> List[NewsModel]:
+    def predict_impact(db: Session, news_id: int, impact_type: ImpactType, impact_score: float) -> Optional[NewsModel]:
         """
-        Get news articles by impact prediction
+        Update the impact prediction for a news article
         """
-        db = get_firestore_db()
+        news = db.query(News).filter(News.id == news_id).first()
+        if not news:
+            return None
         
-        query = db.collection(COLLECTION_NEWS).where(
-            filter=FieldFilter("impact_prediction", "==", impact_type)
-        ).order_by("published_at", direction="DESCENDING").limit(limit)
+        news.impact_prediction = impact_type
+        news.impact_score = impact_score
+        news.updated_at = datetime.now()
         
-        results = []
-        for doc in query.stream():
-            news_data = doc.to_dict()
-            news_data["id"] = doc.id
-            results.append(NewsModel(**news_data))
-            
-        return results
+        try:
+            db.commit()
+            db.refresh(news)
+            return NewsModel.from_orm(news)
+        except IntegrityError:
+            db.rollback()
+            return None

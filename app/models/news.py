@@ -2,6 +2,10 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
+from sqlalchemy import Column, Integer, String, DateTime, Float, Text, ForeignKey, Enum as SQLAEnum
+from sqlalchemy.orm import relationship
+from app.db.postgres.database import Base
+from app.db.postgres.models import news_categories
 
 class ImpactType(str, Enum):
     POSITIVE = "positive"
@@ -9,11 +13,45 @@ class ImpactType(str, Enum):
     NEUTRAL = "neutral"
     UNKNOWN = "unknown"
 
+# SQLAlchemy model for database operations
+class News(Base):
+    """
+    SQLAlchemy model for news table
+    """
+    __tablename__ = "news"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)
+    content = Column(Text, nullable=False)
+    summary = Column(String, nullable=True)
+    source = Column(String, nullable=False)
+    url = Column(String, nullable=False, unique=True)
+    published_at = Column(DateTime, nullable=False)
+    image_url = Column(String, nullable=True)
+    impact_prediction = Column(SQLAEnum(ImpactType), default=ImpactType.UNKNOWN)
+    impact_score = Column(Float, default=0.0)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    
+    # Relationship with categories through association table
+    categories = relationship("Category", secondary=news_categories, backref="news_articles")
+
+# Category model for the news categories
+class Category(Base):
+    """
+    SQLAlchemy model for categories table
+    """
+    __tablename__ = "categories"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False, unique=True)
+
+# Pydantic model for API requests/responses
 class NewsModel(BaseModel):
     """
-    Model for financial news articles
+    Pydantic model for financial news articles
     """
-    id: Optional[str] = None
+    id: Optional[int] = None
     title: str
     content: str
     summary: Optional[str] = None
@@ -28,6 +66,7 @@ class NewsModel(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.now)
     
     class Config:
+        from_attributes = True  # Allows the model to be created from an ORM model
         schema_extra = {
             "example": {
                 "title": "Fed Raises Interest Rates by 0.25%",
@@ -42,20 +81,27 @@ class NewsModel(BaseModel):
                 "impact_score": -0.75
             }
         }
-    
-    def to_dict(self):
-        """Convert to dictionary for Firestore"""
-        return {
-            "title": self.title,
-            "content": self.content,
-            "summary": self.summary,
-            "source": self.source,
-            "url": self.url,
-            "published_at": self.published_at,
-            "image_url": self.image_url,
-            "categories": self.categories,
-            "impact_prediction": self.impact_prediction,
-            "impact_score": self.impact_score,
-            "created_at": self.created_at,
-            "updated_at": self.updated_at
-        }
+
+# Create model for creating new news articles
+class NewsCreate(BaseModel):
+    title: str
+    content: str
+    summary: Optional[str] = None
+    source: str
+    url: str
+    published_at: datetime
+    image_url: Optional[str] = None
+    categories: List[str] = Field(default_factory=list)
+    impact_prediction: ImpactType = ImpactType.UNKNOWN
+    impact_score: float = 0.0
+
+# Update model for updating news articles
+class NewsUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    summary: Optional[str] = None
+    source: Optional[str] = None
+    image_url: Optional[str] = None
+    categories: Optional[List[str]] = None
+    impact_prediction: Optional[ImpactType] = None
+    impact_score: Optional[float] = None

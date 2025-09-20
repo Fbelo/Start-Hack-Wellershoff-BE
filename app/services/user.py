@@ -1,9 +1,10 @@
 from typing import List, Optional, Dict
 from datetime import datetime
-from app.db.firebase import get_firestore_db, COLLECTION_USERS
-from app.models.user import UserModel
-from google.cloud.firestore_v1.base_query import FieldFilter
-import uuid
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from app.db.postgres.database import get_db
+from app.models.user import User, UserModel, UserCreate, UserUpdate
+from fastapi import Depends, HTTPException
 
 class UserService:
     """
@@ -11,167 +12,159 @@ class UserService:
     """
     
     @staticmethod
-    def get_all(limit: int = 50) -> List[UserModel]:
+    def get_all(db: Session, limit: int = 50) -> List[UserModel]:
         """
         Get all users
         """
-        db = get_firestore_db()
-        users_ref = db.collection(COLLECTION_USERS)
-        
-        query = users_ref.limit(limit)
-        user_docs = query.stream()
-        
-        result = []
-        for doc in user_docs:
-            user_data = doc.to_dict()
-            user_data["id"] = doc.id
-            result.append(UserModel(**user_data))
-            
-        return result
+        users = db.query(User).limit(limit).all()
+        return [UserModel.from_orm(user) for user in users]
     
     @staticmethod
-    def get_by_id(user_id: str) -> Optional[UserModel]:
+    def get_by_id(db: Session, user_id: int) -> Optional[UserModel]:
         """
         Get a user by ID
         """
-        db = get_firestore_db()
-        user_doc = db.collection(COLLECTION_USERS).document(user_id).get()
-        
-        if not user_doc.exists:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
             return None
-            
-        user_data = user_doc.to_dict()
-        user_data["id"] = user_doc.id
-        return UserModel(**user_data)
+        return UserModel.from_orm(user)
     
     @staticmethod
-    def get_by_email(email: str) -> Optional[UserModel]:
+    def get_by_email(db: Session, email: str) -> Optional[UserModel]:
         """
         Get a user by email
         """
-        db = get_firestore_db()
-        query = db.collection(COLLECTION_USERS).where(
-            filter=FieldFilter("email", "==", email)
-        ).limit(1)
-        
-        users = list(query.stream())
-        if not users:
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
             return None
-            
-        user_doc = users[0]
-        user_data = user_doc.to_dict()
-        user_data["id"] = user_doc.id
-        return UserModel(**user_data)
+        return UserModel.from_orm(user)
     
     @staticmethod
-    def create(user: UserModel) -> UserModel:
+    def create(db: Session, user_data: UserCreate) -> UserModel:
         """
         Create a new user
         """
-        db = get_firestore_db()
-        
         # Check if user with email already exists
-        existing_user = UserService.get_by_email(user.email)
+        existing_user = db.query(User).filter(User.email == user_data.email).first()
         if existing_user:
-            raise ValueError(f"User with email {user.email} already exists")
+            raise ValueError(f"User with email {user_data.email} already exists")
         
-        # Generate ID if not provided
-        if not user.id:
-            user.id = str(uuid.uuid4())
-            
-        # Set timestamps
-        user.created_at = datetime.now()
-        user.updated_at = datetime.now()
+        # Create new user
+        user = User(
+            name=user_data.name,
+            email=user_data.email,
+            profile_picture=user_data.profile_picture,
+            preferences=user_data.preferences,
+            created_at=datetime.now(),
+            updated_at=datetime.now()
+        )
         
-        # Save to Firestore
-        user_ref = db.collection(COLLECTION_USERS).document(user.id)
-        user_ref.set(user.to_dict())
-        
-        return user
+        try:
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            return UserModel.from_orm(user)
+        except IntegrityError as e:
+            db.rollback()
+            raise ValueError(f"Failed to create user: {str(e)}")
     
     @staticmethod
-    def update(user_id: str, updates: dict) -> Optional[UserModel]:
+    def update(db: Session, user_id: int, user_data: UserUpdate) -> Optional[UserModel]:
         """
         Update a user
         """
-        db = get_firestore_db()
-        user_ref = db.collection(COLLECTION_USERS).document(user_id)
-        user_doc = user_ref.get()
-        
-        if not user_doc.exists:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
             return None
-            
-        # Get current data and update
-        user_data = user_doc.to_dict()
-        user_data.update(updates)
-        user_data["updated_at"] = datetime.now()
         
-        # Save to Firestore
-        user_ref.update(user_data)
+        # Update fields if provided
+        if user_data.name is not None:
+            user.name = user_data.name
+        if user_data.email is not None:
+            user.email = user_data.email
+        if user_data.profile_picture is not None:
+            user.profile_picture = user_data.profile_picture
+        if user_data.preferences is not None:
+            user.preferences = user_data.preferences
+        if user_data.last_login is not None:
+            user.last_login = user_data.last_login
         
-        # Return updated user
-        user_data["id"] = user_id
-        return UserModel(**user_data)
+        user.updated_at = datetime.now()
+        
+        try:
+            db.commit()
+            db.refresh(user)
+            return UserModel.from_orm(user)
+        except IntegrityError as e:
+            db.rollback()
+            raise ValueError(f"Failed to update user: {str(e)}")
     
     @staticmethod
-    def delete(user_id: str) -> bool:
+    def delete(db: Session, user_id: int) -> bool:
         """
         Delete a user
         """
-        db = get_firestore_db()
-        user_ref = db.collection(COLLECTION_USERS).document(user_id)
-        user_doc = user_ref.get()
-        
-        if not user_doc.exists:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
             return False
-            
-        user_ref.delete()
-        return True
+        
+        try:
+            db.delete(user)
+            db.commit()
+            return True
+        except Exception:
+            db.rollback()
+            return False
     
     @staticmethod
-    def update_preferences(user_id: str, preferences: Dict[str, bool]) -> Optional[UserModel]:
+    def update_preferences(db: Session, user_id: int, preferences: Dict[str, bool]) -> Optional[UserModel]:
         """
         Update a user's preferences
         """
-        db = get_firestore_db()
-        user_ref = db.collection(COLLECTION_USERS).document(user_id)
-        user_doc = user_ref.get()
-        
-        if not user_doc.exists:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
             return None
-            
-        # Get current data
-        user_data = user_doc.to_dict()
         
         # Update preferences
-        if "preferences" not in user_data:
-            user_data["preferences"] = {}
-        user_data["preferences"].update(preferences)
-        user_data["updated_at"] = datetime.now()
+        if not user.preferences:
+            user.preferences = {}
+        user.preferences.update(preferences)
+        user.updated_at = datetime.now()
         
-        # Save to Firestore
-        user_ref.update({
-            "preferences": user_data["preferences"],
-            "updated_at": user_data["updated_at"]
-        })
-        
-        # Return updated user
-        user_data["id"] = user_id
-        return UserModel(**user_data)
+        try:
+            db.commit()
+            db.refresh(user)
+            return UserModel.from_orm(user)
+        except IntegrityError:
+            db.rollback()
+            return None
     
     @staticmethod
-    def record_login(user_id: str) -> Optional[UserModel]:
+    def record_login(db: Session, user_id: int) -> Optional[UserModel]:
         """
         Record a user login
         """
-        return UserService.update(user_id, {"last_login": datetime.now()})
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return None
+        
+        user.last_login = datetime.now()
+        user.updated_at = datetime.now()
+        
+        try:
+            db.commit()
+            db.refresh(user)
+            return UserModel.from_orm(user)
+        except IntegrityError:
+            db.rollback()
+            return None
     
     @staticmethod
-    def create_fake_user() -> UserModel:
+    def create_fake_user(db: Session) -> UserModel:
         """
         Create a fake user for demo purposes
         """
-        fake_user = UserModel(
+        fake_user_data = UserCreate(
             name="Demo User",
             email="demo@example.com",
             profile_picture="https://ui-avatars.com/api/?name=Demo+User&background=random",
@@ -181,4 +174,9 @@ class UserService:
                 "market_updates": True
             }
         )
-        return UserService.create(fake_user)
+        
+        try:
+            return UserService.create(db, fake_user_data)
+        except ValueError:
+            # If user already exists, get it
+            return UserService.get_by_email(db, "demo@example.com")

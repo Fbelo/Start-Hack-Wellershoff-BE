@@ -1,9 +1,11 @@
 from typing import List, Optional, Dict
 from datetime import datetime
-from app.db.firebase import get_firestore_db, COLLECTION_PORTFOLIO_ASSETS
-from app.models.portfolio_asset import PortfolioAssetModel, AssetType
-from google.cloud.firestore_v1.base_query import FieldFilter
-import uuid
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy import desc
+from app.db.postgres.database import get_db
+from app.models.portfolio_asset import PortfolioAsset, PortfolioAssetModel, PortfolioAssetCreate, PortfolioAssetUpdate, Tag, AssetType
+from fastapi import Depends, HTTPException
 
 class PortfolioAssetService:
     """
@@ -11,223 +13,187 @@ class PortfolioAssetService:
     """
     
     @staticmethod
-    def get_all_by_user(user_id: str) -> List[PortfolioAssetModel]:
+    def get_all_by_user(db: Session, user_id: int) -> List[PortfolioAssetModel]:
         """
         Get all portfolio assets for a user
         """
-        db = get_firestore_db()
-        query = db.collection(COLLECTION_PORTFOLIO_ASSETS).where(
-            filter=FieldFilter("user_id", "==", user_id)
-        )
-        
-        asset_docs = query.stream()
-        
-        result = []
-        for doc in asset_docs:
-            asset_data = doc.to_dict()
-            asset_data["id"] = doc.id
-            result.append(PortfolioAssetModel(**asset_data))
-            
-        return result
+        assets = db.query(PortfolioAsset).filter(PortfolioAsset.user_id == user_id).all()
+        return [PortfolioAssetModel.from_orm(asset) for asset in assets]
     
     @staticmethod
-    def get_by_id(asset_id: str) -> Optional[PortfolioAssetModel]:
+    def get_by_id(db: Session, asset_id: int) -> Optional[PortfolioAssetModel]:
         """
         Get a portfolio asset by ID
         """
-        db = get_firestore_db()
-        asset_doc = db.collection(COLLECTION_PORTFOLIO_ASSETS).document(asset_id).get()
-        
-        if not asset_doc.exists:
+        asset = db.query(PortfolioAsset).filter(PortfolioAsset.id == asset_id).first()
+        if not asset:
             return None
-            
-        asset_data = asset_doc.to_dict()
-        asset_data["id"] = asset_doc.id
-        return PortfolioAssetModel(**asset_data)
+        return PortfolioAssetModel.from_orm(asset)
     
     @staticmethod
-    def create(asset: PortfolioAssetModel) -> PortfolioAssetModel:
+    def get_by_symbol_and_user(db: Session, symbol: str, user_id: int) -> Optional[PortfolioAssetModel]:
+        """
+        Get a portfolio asset by symbol and user ID
+        """
+        asset = db.query(PortfolioAsset).filter(
+            PortfolioAsset.symbol == symbol,
+            PortfolioAsset.user_id == user_id
+        ).first()
+        if not asset:
+            return None
+        return PortfolioAssetModel.from_orm(asset)
+    
+    @staticmethod
+    def create(db: Session, asset_data: PortfolioAssetCreate) -> PortfolioAssetModel:
         """
         Create a new portfolio asset
         """
-        db = get_firestore_db()
+        # Process tags
+        tags = []
+        for tag_name in asset_data.tags:
+            # Find or create tag
+            tag = db.query(Tag).filter(Tag.name == tag_name).first()
+            if not tag:
+                tag = Tag(name=tag_name)
+                db.add(tag)
+                db.flush()  # Flush to get the ID
+            tags.append(tag)
         
-        # Generate ID if not provided
-        if not asset.id:
-            asset.id = str(uuid.uuid4())
-            
-        # Set timestamps
-        asset.created_at = datetime.now()
-        asset.updated_at = datetime.now()
+        # Create asset
+        asset = PortfolioAsset(
+            user_id=asset_data.user_id,
+            symbol=asset_data.symbol,
+            name=asset_data.name,
+            asset_type=asset_data.asset_type,
+            quantity=asset_data.quantity,
+            purchase_price=asset_data.purchase_price,
+            current_price=asset_data.current_price,
+            purchase_date=asset_data.purchase_date,
+            sector=asset_data.sector,
+            industry=asset_data.industry,
+            country=asset_data.country,
+            metadata=asset_data.metadata,
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+            tags=tags
+        )
         
-        # Save to Firestore
-        asset_ref = db.collection(COLLECTION_PORTFOLIO_ASSETS).document(asset.id)
-        asset_ref.set(asset.to_dict())
-        
-        return asset
+        try:
+            db.add(asset)
+            db.commit()
+            db.refresh(asset)
+            return PortfolioAssetModel.from_orm(asset)
+        except IntegrityError as e:
+            db.rollback()
+            raise ValueError(f"Failed to create portfolio asset: {str(e)}")
     
     @staticmethod
-    def update(asset_id: str, updates: dict) -> Optional[PortfolioAssetModel]:
+    def update(db: Session, asset_id: int, asset_data: PortfolioAssetUpdate) -> Optional[PortfolioAssetModel]:
         """
         Update a portfolio asset
         """
-        db = get_firestore_db()
-        asset_ref = db.collection(COLLECTION_PORTFOLIO_ASSETS).document(asset_id)
-        asset_doc = asset_ref.get()
-        
-        if not asset_doc.exists:
+        asset = db.query(PortfolioAsset).filter(PortfolioAsset.id == asset_id).first()
+        if not asset:
             return None
-            
-        # Get current data and update
-        asset_data = asset_doc.to_dict()
-        asset_data.update(updates)
-        asset_data["updated_at"] = datetime.now()
         
-        # Save to Firestore
-        asset_ref.update(asset_data)
+        # Update fields if provided
+        if asset_data.symbol is not None:
+            asset.symbol = asset_data.symbol
+        if asset_data.name is not None:
+            asset.name = asset_data.name
+        if asset_data.asset_type is not None:
+            asset.asset_type = asset_data.asset_type
+        if asset_data.quantity is not None:
+            asset.quantity = asset_data.quantity
+        if asset_data.purchase_price is not None:
+            asset.purchase_price = asset_data.purchase_price
+        if asset_data.current_price is not None:
+            asset.current_price = asset_data.current_price
+        if asset_data.purchase_date is not None:
+            asset.purchase_date = asset_data.purchase_date
+        if asset_data.sector is not None:
+            asset.sector = asset_data.sector
+        if asset_data.industry is not None:
+            asset.industry = asset_data.industry
+        if asset_data.country is not None:
+            asset.country = asset_data.country
+        if asset_data.metadata is not None:
+            asset.metadata = asset_data.metadata
         
-        # Return updated asset
-        asset_data["id"] = asset_id
-        return PortfolioAssetModel(**asset_data)
+        # Update tags if provided
+        if asset_data.tags is not None:
+            tags = []
+            for tag_name in asset_data.tags:
+                # Find or create tag
+                tag = db.query(Tag).filter(Tag.name == tag_name).first()
+                if not tag:
+                    tag = Tag(name=tag_name)
+                    db.add(tag)
+                    db.flush()  # Flush to get the ID
+                tags.append(tag)
+            asset.tags = tags
+        
+        asset.updated_at = datetime.now()
+        
+        try:
+            db.commit()
+            db.refresh(asset)
+            return PortfolioAssetModel.from_orm(asset)
+        except IntegrityError as e:
+            db.rollback()
+            raise ValueError(f"Failed to update portfolio asset: {str(e)}")
     
     @staticmethod
-    def delete(asset_id: str) -> bool:
+    def delete(db: Session, asset_id: int) -> bool:
         """
         Delete a portfolio asset
         """
-        db = get_firestore_db()
-        asset_ref = db.collection(COLLECTION_PORTFOLIO_ASSETS).document(asset_id)
-        asset_doc = asset_ref.get()
-        
-        if not asset_doc.exists:
+        asset = db.query(PortfolioAsset).filter(PortfolioAsset.id == asset_id).first()
+        if not asset:
             return False
-            
-        asset_ref.delete()
-        return True
+        
+        try:
+            db.delete(asset)
+            db.commit()
+            return True
+        except Exception:
+            db.rollback()
+            return False
     
     @staticmethod
-    def get_by_symbol(user_id: str, symbol: str) -> Optional[PortfolioAssetModel]:
+    def update_current_price(db: Session, asset_id: int, current_price: float) -> Optional[PortfolioAssetModel]:
         """
-        Get a portfolio asset by symbol for a specific user
+        Update the current price of a portfolio asset
         """
-        db = get_firestore_db()
-        query = db.collection(COLLECTION_PORTFOLIO_ASSETS).where(
-            filter=FieldFilter("user_id", "==", user_id)
-        ).where(
-            filter=FieldFilter("symbol", "==", symbol)
-        ).limit(1)
-        
-        assets = list(query.stream())
-        if not assets:
+        asset = db.query(PortfolioAsset).filter(PortfolioAsset.id == asset_id).first()
+        if not asset:
             return None
-            
-        asset_doc = assets[0]
-        asset_data = asset_doc.to_dict()
-        asset_data["id"] = asset_doc.id
-        return PortfolioAssetModel(**asset_data)
+        
+        asset.current_price = current_price
+        asset.updated_at = datetime.now()
+        
+        try:
+            db.commit()
+            db.refresh(asset)
+            return PortfolioAssetModel.from_orm(asset)
+        except IntegrityError:
+            db.rollback()
+            return None
     
     @staticmethod
-    def get_by_type(user_id: str, asset_type: AssetType) -> List[PortfolioAssetModel]:
+    def get_by_tag(db: Session, tag: str, user_id: int) -> List[PortfolioAssetModel]:
         """
-        Get portfolio assets by type for a specific user
+        Get portfolio assets by tag
         """
-        db = get_firestore_db()
-        query = db.collection(COLLECTION_PORTFOLIO_ASSETS).where(
-            filter=FieldFilter("user_id", "==", user_id)
-        ).where(
-            filter=FieldFilter("asset_type", "==", asset_type)
-        )
+        # Find the tag
+        tag_obj = db.query(Tag).filter(Tag.name == tag).first()
+        if not tag_obj:
+            return []
         
-        asset_docs = query.stream()
+        # Get assets with this tag for the specified user
+        assets = db.query(PortfolioAsset).filter(
+            PortfolioAsset.user_id == user_id,
+            PortfolioAsset.tags.any(id=tag_obj.id)
+        ).all()
         
-        result = []
-        for doc in asset_docs:
-            asset_data = doc.to_dict()
-            asset_data["id"] = doc.id
-            result.append(PortfolioAssetModel(**asset_data))
-            
-        return result
-    
-    @staticmethod
-    def create_demo_portfolio(user_id: str) -> List[PortfolioAssetModel]:
-        """
-        Create a demo portfolio for a user
-        """
-        demo_assets = [
-            PortfolioAssetModel(
-                user_id=user_id,
-                symbol="AAPL",
-                name="Apple Inc.",
-                asset_type=AssetType.STOCK,
-                quantity=10,
-                purchase_price=150.75,
-                current_price=175.50,
-                purchase_date=datetime(2025, 5, 15),
-                sector="Technology",
-                industry="Consumer Electronics",
-                country="USA",
-                tags=["tech", "consumer", "dividend"]
-            ),
-            PortfolioAssetModel(
-                user_id=user_id,
-                symbol="MSFT",
-                name="Microsoft Corporation",
-                asset_type=AssetType.STOCK,
-                quantity=5,
-                purchase_price=300.25,
-                current_price=325.10,
-                purchase_date=datetime(2025, 6, 10),
-                sector="Technology",
-                industry="Software",
-                country="USA",
-                tags=["tech", "software", "cloud"]
-            ),
-            PortfolioAssetModel(
-                user_id=user_id,
-                symbol="AMZN",
-                name="Amazon.com, Inc.",
-                asset_type=AssetType.STOCK,
-                quantity=3,
-                purchase_price=3100.50,
-                current_price=3250.75,
-                purchase_date=datetime(2025, 4, 20),
-                sector="Consumer Cyclical",
-                industry="Internet Retail",
-                country="USA",
-                tags=["tech", "retail", "cloud"]
-            ),
-            PortfolioAssetModel(
-                user_id=user_id,
-                symbol="BTC",
-                name="Bitcoin",
-                asset_type=AssetType.CRYPTO,
-                quantity=0.5,
-                purchase_price=40000.00,
-                current_price=45000.00,
-                purchase_date=datetime(2025, 3, 5),
-                sector=None,
-                industry=None,
-                country=None,
-                tags=["crypto", "digital asset"]
-            ),
-            PortfolioAssetModel(
-                user_id=user_id,
-                symbol="VTI",
-                name="Vanguard Total Stock Market ETF",
-                asset_type=AssetType.ETF,
-                quantity=15,
-                purchase_price=200.00,
-                current_price=210.50,
-                purchase_date=datetime(2025, 1, 15),
-                sector="N/A",
-                industry="Fund",
-                country="USA",
-                tags=["etf", "index", "diversified"]
-            )
-        ]
-        
-        created_assets = []
-        for asset in demo_assets:
-            created_assets.append(PortfolioAssetService.create(asset))
-            
-        return created_assets
+        return [PortfolioAssetModel.from_orm(asset) for asset in assets]
