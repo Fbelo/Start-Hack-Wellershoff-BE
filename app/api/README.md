@@ -14,7 +14,6 @@ app/
       user_controller.py  # User controller with user_router
       news_controller.py  # News controller with news_router
       portfolio_controller.py # Portfolio controller with portfolio_router
-      prediction_controller.py # Prediction controller with prediction_router
     schemas/
       # Pydantic models for request/response validation
 ```

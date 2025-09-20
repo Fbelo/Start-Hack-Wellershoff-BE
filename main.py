@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 import logging
+import os
 
 from app.db.database import engine, Base, create_schema_if_not_exists
 
@@ -27,7 +28,8 @@ app.add_middleware(
 )
 
 # Import and include router
-from app.api.router import router
+from app.api import get_router
+router = get_router()
 
 # Include the main router
 app.include_router(router)
@@ -38,13 +40,26 @@ async def root():
 
 # Import news scraper scheduler
 from app.scrapers.scheduler import start_scheduler
+from app.watsonx import watson_service
 
 # Start background tasks
 @app.on_event("startup")
 async def startup_event():
+    # Check for required WatsonX environment variables
+    required_vars = ["WATSONX_API_KEY", "WATSONX_INSTANCE_ID", "WATSONX_PROJECT_ID"]
+    missing_vars = [var for var in required_vars if os.getenv(var) is None]
+    
+    if missing_vars:
+        logging.warning(f"Missing required WatsonX environment variables: {', '.join(missing_vars)}")
+        logging.warning("WatsonX integration will not function correctly without these variables")
+    
     # Start the news scraper scheduler in a background task
     asyncio.create_task(start_scheduler())
     logging.info("Started news scraper scheduler")
+    
+    # Start the Watson service in a background task
+    asyncio.create_task(watson_service.start())
+    logging.info("Started Watson service")
 
 if __name__ == "__main__":
     import uvicorn

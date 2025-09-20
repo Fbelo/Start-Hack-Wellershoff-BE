@@ -4,6 +4,7 @@ from app.scrapers.news_scraper import scrape_all_news
 from app.api.controllers.news import NewsController
 from app.api.schemas.news import NewsModel, ImpactType, NewsCreate
 from app.db.database import get_db, SessionLocal
+from app.watsonx import watson_service
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -70,8 +71,22 @@ class NewsScraperScheduler:
                     
                     # Save to database
                     with SessionLocal() as db:
-                        NewsController.create(db, news_create)
-                    logger.info(f"Saved news: {news.title}")
+                        news_model = NewsController.create(db, news_create)
+                        logger.info(f"Saved news: {news.title}")
+                        
+                        # Send to Watson for analysis
+                        try:
+                            # Use the Watson service to process this news item
+                            update = await watson_service.process_single_news(news_model)
+                            
+                            if update:
+                                # Update the news item with the analysis results
+                                NewsController.update(db, news_model.id, update)
+                                logger.info(f"Updated news with Watson analysis: {news.title}")
+                            else:
+                                logger.warning(f"Failed to get Watson analysis for: {news.title}")
+                        except Exception as e:
+                            logger.error(f"Error processing news through Watson: {str(e)}")
                 else:
                     logger.info(f"News already exists: {news.title}")
             except Exception as e:

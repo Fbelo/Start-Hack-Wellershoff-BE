@@ -4,16 +4,7 @@ Pydantic schemas for Portfolio Assets API
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, List
 from datetime import datetime
-from enum import Enum
-
-class AssetType(str, Enum):
-    STOCK = "stock"
-    BOND = "bond"
-    ETF = "etf"
-    CRYPTO = "crypto"
-    FOREX = "forex"
-    COMMODITY = "commodity"
-    OTHER = "other"
+from app.common.enums import AssetType
 
 class PortfolioAssetModel(BaseModel):
     """

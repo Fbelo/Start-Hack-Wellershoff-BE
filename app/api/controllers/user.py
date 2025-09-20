@@ -20,14 +20,6 @@ class UserController:
     """
     
     @staticmethod
-    def get_all(db: Session, limit: int = 50) -> List[UserModel]:
-        """
-        Get all users
-        """
-        users = db.query(User).limit(limit).all()
-        return [UserModel.model_validate(user) for user in users]
-    
-    @staticmethod
     def get_by_id(db: Session, user_id: int) -> Optional[UserModel]:
         """
         Get a user by ID
@@ -122,31 +114,6 @@ class UserController:
             return False
     
     @staticmethod
-    def update_preferences(db: Session, user_id: int, preferences: Dict[str, bool]) -> Optional[UserModel]:
-        """
-        Update a user's preferences
-        """
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            return None
-        
-        # Update preferences
-        if not hasattr(user, 'preferences') or user.preferences is None:
-            user.preferences = {}
-        
-        if hasattr(user, 'preferences'):
-            user.preferences.update(preferences)
-        user.updated_at = datetime.now()
-        
-        try:
-            db.commit()
-            db.refresh(user)
-            return UserModel.model_validate(user)
-        except IntegrityError:
-            db.rollback()
-            return None
-    
-    @staticmethod
     def record_login(db: Session, user_id: int) -> Optional[UserModel]:
         """
         Record a user login
@@ -165,34 +132,7 @@ class UserController:
         except IntegrityError:
             db.rollback()
             return None
-    
-    @staticmethod
-    def create_fake_user(db: Session) -> UserModel:
-        """
-        Create a fake user for demo purposes
-        """
-        fake_user_data = UserCreate(
-            name="Demo User",
-            email="demo@example.com",
-            profile_picture="https://ui-avatars.com/api/?name=Demo+User&background=random"
-        )
         
-        try:
-            return UserController.create(db, fake_user_data)
-        except ValueError:
-            # If user already exists, get it
-            return UserController.get_by_email(db, "demo@example.com")
-    
-    # API Endpoint Methods
-    @staticmethod
-    async def api_get_all_users(
-        limit: int = Query(50, ge=1, le=100),
-        db: Session = Depends(get_db)
-    ):
-        """
-        Get all users
-        """
-        return UserController.get_all(db, limit=limit)
 
     @staticmethod
     async def api_get_user_by_id(
@@ -262,25 +202,7 @@ class UserController:
             raise HTTPException(status_code=404, detail="User not found")
         return True
 
-    @staticmethod
-    async def api_update_user_preferences(
-        user_id: int,
-        preferences: Dict[str, bool] = Body(...),
-        db: Session = Depends(get_db)
-    ):
-        """
-        Update a user's preferences
-        """
-        updated_user = UserController.update_preferences(db, user_id, preferences)
-        if not updated_user:
-            raise HTTPException(status_code=404, detail="User not found")
-        return updated_user
 
-
-# Define routes
-@user_router.get("/", response_model=List[UserModel])
-async def get_all_users(limit: int = Query(50, ge=1, le=100), db: Session = Depends(get_db)):
-    return await UserController.api_get_all_users(limit=limit, db=db)
 
 @user_router.get("/{user_id}", response_model=UserModel)
 async def get_user_by_id(user_id: int, db: Session = Depends(get_db)):
@@ -301,7 +223,3 @@ async def update_user(user_id: int, user: UserUpdate, db: Session = Depends(get_
 @user_router.delete("/{user_id}", response_model=bool)
 async def delete_user(user_id: int, db: Session = Depends(get_db)):
     return await UserController.api_delete_user(user_id=user_id, db=db)
-
-@user_router.patch("/{user_id}/preferences", response_model=UserModel)
-async def update_user_preferences(user_id: int, preferences: Dict[str, bool] = Body(...), db: Session = Depends(get_db)):
-    return await UserController.api_update_user_preferences(user_id=user_id, preferences=preferences, db=db)

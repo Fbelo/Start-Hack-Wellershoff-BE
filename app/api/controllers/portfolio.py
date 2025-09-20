@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from app.db.models import PortfolioAsset, Tag
-from app.api.schemas.portfolio_asset import PortfolioAssetModel, PortfolioAssetCreate, PortfolioAssetUpdate, AssetType
+from app.api.schemas.portfolio import PortfolioAssetModel, PortfolioAssetCreate, PortfolioAssetUpdate, AssetType
 from app.db.database import get_db
 
 # Create portfolio router
@@ -25,40 +25,6 @@ class PortfolioController:
         Get all portfolio assets for a user
         """
         assets = db.query(PortfolioAsset).filter(PortfolioAsset.user_id == user_id).all()
-        return [PortfolioAssetModel.model_validate(asset) for asset in assets]
-    
-    @staticmethod
-    def get_by_id(db: Session, asset_id: int) -> Optional[PortfolioAssetModel]:
-        """
-        Get portfolio asset by ID
-        """
-        asset = db.query(PortfolioAsset).filter(PortfolioAsset.id == asset_id).first()
-        if not asset:
-            return None
-        return PortfolioAssetModel.model_validate(asset)
-    
-    @staticmethod
-    def get_by_symbol_and_user(db: Session, symbol: str, user_id: int) -> Optional[PortfolioAssetModel]:
-        """
-        Get portfolio asset by symbol and user ID
-        """
-        asset = db.query(PortfolioAsset).filter(
-            PortfolioAsset.symbol == symbol,
-            PortfolioAsset.user_id == user_id
-        ).first()
-        if not asset:
-            return None
-        return PortfolioAssetModel.model_validate(asset)
-    
-    @staticmethod
-    def get_by_type(db: Session, user_id: int, asset_type: AssetType) -> List[PortfolioAssetModel]:
-        """
-        Get portfolio assets by type for a user
-        """
-        assets = db.query(PortfolioAsset).filter(
-            PortfolioAsset.user_id == user_id,
-            PortfolioAsset.asset_type == asset_type
-        ).all()
         return [PortfolioAssetModel.model_validate(asset) for asset in assets]
 
     @staticmethod
@@ -97,43 +63,6 @@ class PortfolioController:
             db.rollback()
             raise ValueError(f"Failed to create portfolio asset: {str(e)}")
     
-    @staticmethod
-    def update(db: Session, asset_id: int, asset_data: PortfolioAssetUpdate) -> Optional[PortfolioAssetModel]:
-        """
-        Update a portfolio asset
-        """
-        asset = db.query(PortfolioAsset).filter(PortfolioAsset.id == asset_id).first()
-        if not asset:
-            return None
-        
-        # Update fields if provided
-        if asset_data.symbol is not None:
-            asset.symbol = asset_data.symbol
-        if asset_data.name is not None:
-            asset.name = asset_data.name
-        
-        # Update tags if provided
-        if asset_data.tags is not None:
-            tags = []
-            for tag_name in asset_data.tags:
-                # Find or create tag
-                tag = db.query(Tag).filter(Tag.name == tag_name).first()
-                if not tag:
-                    tag = Tag(name=tag_name)
-                    db.add(tag)
-                    db.flush()  # Flush to get the ID
-                tags.append(tag)
-            asset.tags = tags
-        
-        asset.updated_at = datetime.now()
-        
-        try:
-            db.commit()
-            db.refresh(asset)
-            return PortfolioAssetModel.model_validate(asset)
-        except IntegrityError as e:
-            db.rollback()
-            raise ValueError(f"Failed to update portfolio asset: {str(e)}")
     
     @staticmethod
     def delete(db: Session, asset_id: int) -> bool:
@@ -238,26 +167,6 @@ async def get_user_portfolio(user_id: int, db: Session = Depends(get_db)):
     """Get all portfolio assets for a user"""
     return PortfolioController.get_all_by_user(db=db, user_id=user_id)
 
-@portfolio_router.get("/asset/{asset_id}", response_model=PortfolioAssetModel)
-async def get_asset_by_id(asset_id: int, db: Session = Depends(get_db)):
-    """Get portfolio asset by ID"""
-    asset = PortfolioController.get_by_id(db=db, asset_id=asset_id)
-    if not asset:
-        raise HTTPException(status_code=404, detail="Portfolio asset not found")
-    return asset
-
-@portfolio_router.get("/{user_id}/type/{asset_type}", response_model=List[PortfolioAssetModel])
-async def get_assets_by_type(user_id: int, asset_type: AssetType, db: Session = Depends(get_db)):
-    """Get portfolio assets by type for a user"""
-    return PortfolioController.get_by_type(db=db, user_id=user_id, asset_type=asset_type)
-
-@portfolio_router.get("/{user_id}/symbol/{symbol}", response_model=PortfolioAssetModel)
-async def get_asset_by_symbol(user_id: int, symbol: str, db: Session = Depends(get_db)):
-    """Get portfolio asset by symbol for a user"""
-    asset = PortfolioController.get_by_symbol_and_user(db=db, symbol=symbol, user_id=user_id)
-    if not asset:
-        raise HTTPException(status_code=404, detail="Portfolio asset not found")
-    return asset
 
 @portfolio_router.get("/{user_id}/tag/{tag}", response_model=List[PortfolioAssetModel])
 async def get_assets_by_tag(user_id: int, tag: str, db: Session = Depends(get_db)):

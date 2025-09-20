@@ -47,13 +47,15 @@ class NewsController:
         category_obj = db.query(Category).filter(Category.name == category).first()
         if not category_obj:
             return []
-        
-        # Get news articles with this category
-        news = db.query(News).filter(
-            News.categories.any(id=category_obj.id)
-        ).order_by(desc(News.published_at)).offset(offset).limit(limit).all()
-        
+            
+    @staticmethod
+    def get_by_impact(db: Session, impact_type: ImpactType, limit: int = 100, offset: int = 0) -> List[NewsModel]:
+        """
+        Get news articles by impact prediction type
+        """
+        news = db.query(News).filter(News.impact_prediction == impact_type).order_by(desc(News.published_at)).offset(offset).limit(limit).all()
         return [NewsModel.model_validate(item) for item in news]
+        
     
     @staticmethod
     def search(db: Session, query: str, limit: int = 50, offset: int = 0) -> List[NewsModel]:
@@ -178,25 +180,6 @@ class NewsController:
         news = db.query(News).order_by(desc(News.published_at)).limit(limit).all()
         return [NewsModel.model_validate(item) for item in news]
     
-    @staticmethod
-    def predict_impact(db: Session, news_id: int, impact_type: ImpactType) -> Optional[NewsModel]:
-        """
-        Update the impact prediction for a news article
-        """
-        news = db.query(News).filter(News.id == news_id).first()
-        if not news:
-            return None
-        
-        news.impact_prediction = impact_type
-        news.updated_at = datetime.now()
-        
-        try:
-            db.commit()
-            db.refresh(news)
-            return NewsModel.model_validate(news)
-        except IntegrityError:
-            db.rollback()
-            return None
             
     # API Endpoint Methods
     @staticmethod
@@ -247,20 +230,6 @@ class NewsController:
         """
         return NewsController.search(db, query, limit=limit, offset=offset)
 
-    @staticmethod
-    async def api_create_news(
-        news: NewsCreate,
-        db: Session = Depends(get_db)
-    ):
-        """
-        Create a new news article
-        """
-        try:
-            return NewsController.create(db, news)
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
 
     @staticmethod
     async def api_update_news(
@@ -275,19 +244,6 @@ class NewsController:
         if not updated_news:
             raise HTTPException(status_code=404, detail="News article not found")
         return updated_news
-
-    @staticmethod
-    async def api_delete_news(
-        news_id: int,
-        db: Session = Depends(get_db)
-    ):
-        """
-        Delete a news article
-        """
-        result = NewsController.delete(db, news_id)
-        if not result:
-            raise HTTPException(status_code=404, detail="News article not found")
-        return True
         
     @staticmethod
     async def api_get_latest_news(
@@ -299,19 +255,6 @@ class NewsController:
         """
         return NewsController.get_latest(db, limit=limit)
 
-    @staticmethod
-    async def api_predict_impact(
-        news_id: int,
-        impact_type: ImpactType,
-        db: Session = Depends(get_db)
-    ):
-        """
-        Update the impact prediction for a news article
-        """
-        updated_news = NewsController.predict_impact(db, news_id, impact_type)
-        if not updated_news:
-            raise HTTPException(status_code=404, detail="News article not found")
-        return updated_news
 
 
 # Define routes
@@ -349,26 +292,6 @@ async def search_news(
 async def get_latest_news(limit: int = Query(10, ge=1, le=50), db: Session = Depends(get_db)):
     return await NewsController.api_get_latest_news(limit=limit, db=db)
 
-@news_router.post("/", response_model=NewsModel, status_code=201)
-async def create_news(news: NewsCreate, db: Session = Depends(get_db)):
-    return await NewsController.api_create_news(news=news, db=db)
-
 @news_router.put("/{news_id}", response_model=NewsModel)
 async def update_news(news_id: int, news: NewsUpdate, db: Session = Depends(get_db)):
     return await NewsController.api_update_news(news_id=news_id, news=news, db=db)
-
-@news_router.delete("/{news_id}", response_model=bool)
-async def delete_news(news_id: int, db: Session = Depends(get_db)):
-    return await NewsController.api_delete_news(news_id=news_id, db=db)
-
-@news_router.patch("/{news_id}/impact", response_model=NewsModel)
-async def predict_impact(
-    news_id: int, 
-    impact_type: ImpactType, 
-    db: Session = Depends(get_db)
-):
-    return await NewsController.api_predict_impact(
-        news_id=news_id, 
-        impact_type=impact_type, 
-        db=db
-    )

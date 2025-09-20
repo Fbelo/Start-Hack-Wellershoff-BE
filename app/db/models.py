@@ -5,16 +5,8 @@ from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Table, Tex
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.db.database import Base, SCHEMA_NAME
-from app.api.schemas.portfolio_asset import AssetType
+from app.common.enums import AssetType, ImpactType
 from datetime import datetime, timezone
-from enum import Enum
-
-class ImpactType(str, Enum):
-    VERY_POSITIVE = "very_positive"
-    POSITIVE = "positive"
-    UNSURE = "unsure"
-    NEGATIVE = "negative"
-    VERY_NEGATIVE = "very_negative"
 
 # SQLAlchemy model for users
 class User(Base):
@@ -34,6 +26,19 @@ class User(Base):
     portfolio_assets = relationship("PortfolioAsset")
     news = relationship("News")
 
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "email": self.email,
+            "profile_picture": self.profile_picture,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+            "last_login": self.last_login,
+            "portfolio_assets": [asset.id for asset in self.portfolio_assets],
+            "news": [news.id for news in self.news],
+        }
+
 # SQLAlchemy model for news
 class News(Base):
     """
@@ -47,10 +52,7 @@ class News(Base):
     summary = Column(String, nullable=True)
 
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    source_id = Column(Integer, ForeignKey("sources.id"), nullable=False)
 
-
-    url = Column(String, nullable=False, unique=True)
     image_url = Column(String, nullable=True)
 
     impact_prediction = Column(SQLAEnum(ImpactType), nullable=True)
@@ -65,6 +67,23 @@ class News(Base):
     # Relationship with NewsUrl
     news_urls = relationship("NewsUrl")
 
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "title": self.title,
+            "content": self.content,
+            "summary": self.summary,
+            "user_id": self.user_id,
+            "url": self.url,
+            "image_url": self.image_url,
+            "impact_prediction": self.impact_prediction,
+            "impact_prediction_justification": self.impact_prediction_justification,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+            "categories": [cat.id for cat in self.categories],
+            "news_urls": [nu.id for nu in self.news_urls],
+        }
+
 
 # Category model for the news categories
 class Category(Base):
@@ -76,6 +95,13 @@ class Category(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False, unique=True)
     news_id = Column(Integer, ForeignKey("news.id"), nullable=False)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "news_id": self.news_id,
+        }
 
 # SQLAlchemy model for portfolio assets
 class PortfolioAsset(Base):
@@ -93,9 +119,19 @@ class PortfolioAsset(Base):
     asset_type = Column(SQLAEnum(AssetType), nullable=False)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-    
-    # Relationship with user
-    user = relationship("User")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "tag": self.tag,
+            "logo": self.logo,
+            "symbol": self.symbol,
+            "name": self.name,
+            "asset_type": self.asset_type,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
     
 # Tag model for portfolio asset tags
 class Tag(Base):
@@ -109,6 +145,13 @@ class Tag(Base):
 
     # Relationship with tags through association table
     assets = relationship("PortfolioAsset")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "assets": [asset.id for asset in self.assets],
+        }
 
 class Source(Base):
     """
@@ -124,8 +167,14 @@ class Source(Base):
     # Relationship with NewsUrl
     news_urls = relationship("NewsUrl")
 
-    # Relationship with news
-    news = relationship("News")
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "codename": self.codename,
+            "name": self.name,
+            "website": self.website,
+            "news_urls": [nu.id for nu in self.news_urls],
+        }
 
 class NewsUrl(Base):
     """
@@ -138,3 +187,12 @@ class NewsUrl(Base):
     news_id = Column(Integer, ForeignKey(f"news.id"), nullable=False)
     url = Column(String, nullable=False, unique=True)
     published_at = Column(DateTime, nullable=False)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "source_id": self.source_id,
+            "news_id": self.news_id,
+            "url": self.url,
+            "published_at": self.published_at,
+        }
