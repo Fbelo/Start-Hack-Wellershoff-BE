@@ -17,7 +17,7 @@ class UserService:
         Get all users
         """
         users = db.query(User).limit(limit).all()
-        return [UserModel.from_orm(user) for user in users]
+        return [UserModel.model_validate(user) for user in users]
     
     @staticmethod
     def get_by_id(db: Session, user_id: int) -> Optional[UserModel]:
@@ -27,7 +27,7 @@ class UserService:
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             return None
-        return UserModel.from_orm(user)
+        return UserModel.model_validate(user)
     
     @staticmethod
     def get_by_email(db: Session, email: str) -> Optional[UserModel]:
@@ -37,7 +37,7 @@ class UserService:
         user = db.query(User).filter(User.email == email).first()
         if not user:
             return None
-        return UserModel.from_orm(user)
+        return UserModel.model_validate(user)
     
     @staticmethod
     def create(db: Session, user_data: UserCreate) -> UserModel:
@@ -63,7 +63,7 @@ class UserService:
             db.add(user)
             db.commit()
             db.refresh(user)
-            return UserModel.from_orm(user)
+            return UserModel.model_validate(user)
         except IntegrityError as e:
             db.rollback()
             raise ValueError(f"Failed to create user: {str(e)}")
@@ -94,7 +94,7 @@ class UserService:
         try:
             db.commit()
             db.refresh(user)
-            return UserModel.from_orm(user)
+            return UserModel.model_validate(user)
         except IntegrityError as e:
             db.rollback()
             raise ValueError(f"Failed to update user: {str(e)}")
@@ -134,7 +134,7 @@ class UserService:
         try:
             db.commit()
             db.refresh(user)
-            return UserModel.from_orm(user)
+            return UserModel.model_validate(user)
         except IntegrityError:
             db.rollback()
             return None
@@ -154,7 +154,7 @@ class UserService:
         try:
             db.commit()
             db.refresh(user)
-            return UserModel.from_orm(user)
+            return UserModel.model_validate(user)
         except IntegrityError:
             db.rollback()
             return None

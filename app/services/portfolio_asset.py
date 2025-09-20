@@ -18,7 +18,7 @@ class PortfolioAssetService:
         Get all portfolio assets for a user
         """
         assets = db.query(PortfolioAsset).filter(PortfolioAsset.user_id == user_id).all()
-        return [PortfolioAssetModel.from_orm(asset) for asset in assets]
+        return [PortfolioAssetModel.model_validate(asset) for asset in assets]
     
     @staticmethod
     def get_by_id(db: Session, asset_id: int) -> Optional[PortfolioAssetModel]:
@@ -28,7 +28,7 @@ class PortfolioAssetService:
         asset = db.query(PortfolioAsset).filter(PortfolioAsset.id == asset_id).first()
         if not asset:
             return None
-        return PortfolioAssetModel.from_orm(asset)
+        return PortfolioAssetModel.model_validate(asset)
     
     @staticmethod
     def get_by_symbol_and_user(db: Session, symbol: str, user_id: int) -> Optional[PortfolioAssetModel]:
@@ -41,7 +41,7 @@ class PortfolioAssetService:
         ).first()
         if not asset:
             return None
-        return PortfolioAssetModel.from_orm(asset)
+        return PortfolioAssetModel.model_validate(asset)
     
     @staticmethod
     def create(db: Session, asset_data: PortfolioAssetCreate) -> PortfolioAssetModel:
@@ -82,7 +82,7 @@ class PortfolioAssetService:
             db.add(asset)
             db.commit()
             db.refresh(asset)
-            return PortfolioAssetModel.from_orm(asset)
+            return PortfolioAssetModel.model_validate(asset)
         except IntegrityError as e:
             db.rollback()
             raise ValueError(f"Failed to create portfolio asset: {str(e)}")
@@ -138,7 +138,7 @@ class PortfolioAssetService:
         try:
             db.commit()
             db.refresh(asset)
-            return PortfolioAssetModel.from_orm(asset)
+            return PortfolioAssetModel.model_validate(asset)
         except IntegrityError as e:
             db.rollback()
             raise ValueError(f"Failed to update portfolio asset: {str(e)}")
@@ -175,7 +175,7 @@ class PortfolioAssetService:
         try:
             db.commit()
             db.refresh(asset)
-            return PortfolioAssetModel.from_orm(asset)
+            return PortfolioAssetModel.model_validate(asset)
         except IntegrityError:
             db.rollback()
             return None
@@ -196,4 +196,4 @@ class PortfolioAssetService:
             PortfolioAsset.tags.any(id=tag_obj.id)
         ).all()
         
-        return [PortfolioAssetModel.from_orm(asset) for asset in assets]
+        return [PortfolioAssetModel.model_validate(asset) for asset in assets]

@@ -18,7 +18,7 @@ class NewsService:
         Get all news articles with pagination
         """
         news = db.query(News).order_by(desc(News.published_at)).offset(offset).limit(limit).all()
-        return [NewsModel.from_orm(item) for item in news]
+        return [NewsModel.model_validate(item) for item in news]
     
     @staticmethod
     def get_by_id(db: Session, news_id: int) -> Optional[NewsModel]:
@@ -28,7 +28,7 @@ class NewsService:
         news = db.query(News).filter(News.id == news_id).first()
         if not news:
             return None
-        return NewsModel.from_orm(news)
+        return NewsModel.model_validate(news)
     
     @staticmethod
     def get_by_category(db: Session, category: str, limit: int = 50, offset: int = 0) -> List[NewsModel]:
@@ -45,7 +45,7 @@ class NewsService:
             News.categories.any(id=category_obj.id)
         ).order_by(desc(News.published_at)).offset(offset).limit(limit).all()
         
-        return [NewsModel.from_orm(item) for item in news]
+        return [NewsModel.model_validate(item) for item in news]
     
     @staticmethod
     def search(db: Session, query: str, limit: int = 50, offset: int = 0) -> List[NewsModel]:
@@ -57,7 +57,7 @@ class NewsService:
             (News.title.ilike(search_term)) | (News.content.ilike(search_term))
         ).order_by(desc(News.published_at)).offset(offset).limit(limit).all()
         
-        return [NewsModel.from_orm(item) for item in news]
+        return [NewsModel.model_validate(item) for item in news]
     
     @staticmethod
     def create(db: Session, news_data: NewsCreate) -> NewsModel:
@@ -95,7 +95,7 @@ class NewsService:
             db.add(news)
             db.commit()
             db.refresh(news)
-            return NewsModel.from_orm(news)
+            return NewsModel.model_validate(news)
         except IntegrityError as e:
             db.rollback()
             raise ValueError(f"Failed to create news article: {str(e)}")
@@ -143,7 +143,7 @@ class NewsService:
         try:
             db.commit()
             db.refresh(news)
-            return NewsModel.from_orm(news)
+            return NewsModel.model_validate(news)
         except IntegrityError as e:
             db.rollback()
             raise ValueError(f"Failed to update news article: {str(e)}")
@@ -171,7 +171,7 @@ class NewsService:
         Get latest news articles
         """
         news = db.query(News).order_by(desc(News.published_at)).limit(limit).all()
-        return [NewsModel.from_orm(item) for item in news]
+        return [NewsModel.model_validate(item) for item in news]
     
     @staticmethod
     def predict_impact(db: Session, news_id: int, impact_type: ImpactType, impact_score: float) -> Optional[NewsModel]:
@@ -189,7 +189,7 @@ class NewsService:
         try:
             db.commit()
             db.refresh(news)
-            return NewsModel.from_orm(news)
+            return NewsModel.model_validate(news)
         except IntegrityError:
             db.rollback()
             return None
