@@ -2,7 +2,7 @@
 Pydantic schemas for Reports API
 """
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional, Any
+from typing import List, Optional
 from datetime import datetime, date
 from app.common.enums import ImpactType
 

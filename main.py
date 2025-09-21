@@ -1,10 +1,11 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 import logging
 import os
 
 from app.db.database import engine, Base, create_schema_if_not_exists
+from app.common.security import verify_api_key
 
 # Create schema if it doesn't exist
 create_schema_if_not_exists()
@@ -26,6 +27,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add API key middleware
+@app.middleware("http")
+async def api_key_middleware(request: Request, call_next):
+    await verify_api_key(request)
+    response = await call_next(request)
+    return response
 
 # Import and include router
 from app.api import get_router
