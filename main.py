@@ -46,7 +46,7 @@ from app.watsonx import watson_service
 @app.on_event("startup")
 async def startup_event():
     # Check for required WatsonX environment variables
-    required_vars = ["WATSONX_API_KEY", "WATSONX_INSTANCE_ID", "WATSONX_PROJECT_ID"]
+    required_vars = ["WATSON_URL", "WATSON_API_KEY", "WATSON_PROJECT_ID"]
     missing_vars = [var for var in required_vars if os.getenv(var) is None]
     
     if missing_vars:

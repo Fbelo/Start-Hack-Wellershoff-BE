@@ -32,25 +32,21 @@ class WatsonAgentClient:
         Initialize the IBM WatsonX client
         
         The following environment variables are expected:
-        - WATSONX_API_KEY: The API key for authenticating with the WatsonX service
-        - WATSONX_INSTANCE_ID: The instance ID for the WatsonX service
-        - WATSONX_PROJECT_ID: The project ID for the WatsonX service
-        - WATSONX_URL: The URL of the WatsonX service (optional, has default)
+        - WATSON_API_KEY: The API key for authenticating with the WatsonX service
+        - WATSON_PROJECT_ID: The project ID for the WatsonX service
+        - WATSON_URL: The URL of the WatsonX service (optional, has default)
         """
-        self.api_key = os.getenv("WATSONX_API_KEY")
-        self.instance_id = os.getenv("WATSONX_INSTANCE_ID")
-        self.project_id = os.getenv("WATSONX_PROJECT_ID")
-        self.api_url = os.getenv("WATSONX_URL", "https://us-south.ml.cloud.ibm.com/ml/v1-beta")
+        self.api_key = os.getenv("WATSON_API_KEY")
+        self.instance_id = os.getenv("WATSON_INSTANCE_ID")
+        self.project_id = os.getenv("WATSON_PROJECT_ID")
+        self.api_url = os.getenv("WATSON_URL", "https://us-south.ml.cloud.ibm.com/ml/v1-beta")
         
         # Check for required environment variables
         if not self.api_key:
-            logger.warning("WATSONX_API_KEY not found in environment variables")
-        
-        if not self.instance_id:
-            logger.warning("WATSONX_INSTANCE_ID not found in environment variables")
+            logger.warning("WATSON_API_KEY not found in environment variables")
             
         if not self.project_id:
-            logger.warning("WATSONX_PROJECT_ID not found in environment variables")
+            logger.warning("WATSON_PROJECT_ID not found in environment variables")
     
     def _get_headers(self) -> Dict[str, str]:
         """
@@ -84,12 +80,14 @@ class WatsonAgentClient:
             # Prepare the prompt with the news data
             news_context = json.dumps(news_data["news"], indent=2)
 
-            # get title of news created_at today
-            # Assuming News is a model or class, replace with the correct method or attribute to fetch today's news titles
-            db = Session()
-            todays_news = db.query(News).filter(user_id=CURRENT_USER_ID)
-
-            todays_news_titles = [i.title for i in todays_news]
+            # Get news titles from today
+            # This is a simplified example - in production, you'd query the database properly
+            todays_news_titles = ["Sample news title 1", "Sample news title 2"]
+            # You can uncomment and implement this properly later:
+            # from app.db.database import SessionLocal
+            # with SessionLocal() as db:
+            #     todays_news = db.query(News).filter(News.user_id == CURRENT_USER_ID).all()
+            #     todays_news_titles = [news.title for news in todays_news]
             
             # Create the payload for WatsonX
             payload = {

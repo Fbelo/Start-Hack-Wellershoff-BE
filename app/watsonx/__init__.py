@@ -9,6 +9,7 @@ Main components:
 - schemas: Defines request/response models for WatsonX AI
 - processor: Processes news data through WatsonX API
 - service: Integrates WatsonX with the rest of the application
+- report_generator: Generates AI-powered reports based on news data
 """
 
 from app.watsonx.client import WatsonAgentClient
@@ -19,6 +20,7 @@ from app.watsonx.schemas import (
     NewsAnalysisResult
 )
 from app.watsonx.processor import NewsProcessor
+from app.watsonx.report_generator import ReportGenerator
 from app.watsonx.service import WatsonService
 
 # Create a singleton instance of the Watson service
@@ -32,6 +34,7 @@ __all__ = [
     'WatsonNewsAnalysisResponse',
     'NewsAnalysisResult',
     'NewsProcessor',
+    'ReportGenerator',
     'WatsonService',
     'watson_service',
 ]

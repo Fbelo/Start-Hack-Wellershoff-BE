@@ -7,9 +7,11 @@ It coordinates processing of scraped data through the Watson agent.
 import logging
 import asyncio
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from app.watsonx.processor import NewsProcessor
+from app.watsonx.report_generator import ReportGenerator
 from app.api.schemas.news import NewsModel, NewsUpdate
+from app.api.schemas.report import WeeklyAIReport, WeeklyReportRequest
 from app.api.controllers.news import NewsController
 from app.db.database import SessionLocal
 from app.common.enums import ImpactType
@@ -24,6 +26,7 @@ class WatsonService:
     """
     def __init__(self):
         self.processor = NewsProcessor()
+        self.report_generator = ReportGenerator()
         self.processing_interval_minutes = 30  # Process news every 30 minutes
         self.max_batch_size = 20  # Process up to 20 news items at once
         self.is_running = False
@@ -123,3 +126,47 @@ class WatsonService:
         """
         # Check if the Watson API is responsive
         return await self.processor.watson_client.health_check()
+        
+    async def generate_weekly_report(self, report_request: WeeklyReportRequest) -> WeeklyAIReport:
+        """
+        Generate a weekly AI report based on news data
+        
+        Args:
+            report_request (WeeklyReportRequest): The report request parameters
+            
+        Returns:
+            WeeklyAIReport: The generated report
+        """
+        logger.info("Generating weekly AI report")
+        
+        # Determine date range
+        end_date = report_request.end_date or datetime.now().date()
+        start_date = report_request.start_date or (end_date - timedelta(days=7))
+        
+        # Get news for the specified period
+        with SessionLocal() as db:
+            # Convert dates to datetime for database query
+            start_datetime = datetime.combine(start_date, datetime.min.time())
+            end_datetime = datetime.combine(end_date, datetime.max.time())
+            
+            # Get all news within the date range
+            all_news = NewsController.get_all(db, limit=500)  # Get a larger set to filter
+            
+            # Filter by date
+            news_in_range = [
+                news for news in all_news 
+                if start_datetime <= news.published_at <= end_datetime
+            ]
+            
+            logger.info(f"Found {len(news_in_range)} news items in date range")
+        
+        # Generate the report
+        report = await self.report_generator.generate_weekly_report(
+            news_items=news_in_range,
+            start_date=start_date,
+            end_date=end_date,
+            max_news_items=report_request.max_news_items or 10,
+            categories_of_interest=report_request.categories_of_interest
+        )
+        
+        return report

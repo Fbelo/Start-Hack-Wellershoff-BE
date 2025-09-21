@@ -18,8 +18,6 @@ financial times - "https://www.ft.com/news-feed"
 bloomberg - "https://www.bloomberg.com/latest"
 yahoo finance - "https://finance.yahoo.com/topic/latest-news/"
 reuters - "https://www.reuters.com/business/finance/"
-
-
 """
 
 # Configure logging
